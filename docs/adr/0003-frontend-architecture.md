@@ -1,0 +1,181 @@
+# ADR 003: Frontend architecture
+
+Status: Accepted (amended 2026-08-03)
+Date: 2026-08-03
+
+## Context
+
+Existing React experience on the resume is React 16 MERN work, which reads as dated to React-first employers. Primary professional depth is Vue and Nuxt. This project's frontend exists to produce credible, current React evidence.
+
+That goal shapes the stack choice: maximize React-specific practice per hour, rather than re-learning meta-framework patterns already known from Nuxt in a different dialect.
+
+## Stack
+
+| Concern | Choice |
+|---|---|
+| Framework | React 19 |
+| Build | Vite |
+| Routing | React Router v7 (declarative mode, SPA) |
+| Language | TypeScript, strict |
+| Styling | TailwindCSS |
+| Server state | TanStack Query |
+| Client state | Zustand |
+| Validation | Zod |
+| Forms | React Hook Form with Zod resolver |
+| Testing | Vitest, React Testing Library, MSW |
+
+## Rationale
+
+### Why plain React 19 + Vite over Next.js
+
+Next.js is not merely heavier, it is largely inert here. With FastAPI owning the backend, server components, route handlers, and server actions all go unused. The result is a meta-framework where roughly 20% is exercised.
+
+More decisive: coming from Nuxt, file-based routing, SSR hydration, and data-loading conventions are already familiar concepts. Time spent on Next.js is time spent re-learning known patterns in new syntax. A plain SPA concentrates effort on the actual gap: hooks and their dependency semantics, when reconciliation causes problems, why `useEffect` is a footgun, Zustand's store model versus Pinia's.
+
+Existing Nuxt SSR work already demonstrates SSR understanding. This project does not need to prove that again.
+
+Accepted tradeoff: some React job descriptions name Next.js explicitly. If that specific line item becomes important, address it with a separate content-heavy project where SSR earns its place, not this one.
+
+### Why not Remix 3
+
+Remix 3 dropped the React runtime in favor of a forked Preact, with an imperative model (`this.update()` instead of `useState`, native browser events instead of props). A project built on it could not honestly be listed as React experience, which defeats the entire purpose. It is also pre-1.0 with no migration path from Remix 2.
+
+React Router v7 is the actual continuation of the Remix lineage and is genuinely React. That is what this project uses.
+
+### Why TanStack Query
+
+Secret manager UI is almost entirely server state: buckets, secret metadata, API key lists. Hand-rolling fetch plus loading plus error plus invalidation in `useEffect` is the classic React beginner shape and would read as such. TanStack Query is the current idiom and demonstrates knowing where the boundary between server state and client state sits.
+
+Zustand handles the small remainder: which secret rows are currently revealed, modal state, toast queue.
+
+## Type generation across the language boundary
+
+FastAPI emits an OpenAPI schema. `openapi-typescript` compiles it to TypeScript types derived from the Pydantic models.
+
+```
+make types
+```
+
+regenerates `web/src/api/generated.ts`, which is committed. CI includes a drift check that regenerates and fails on a non-empty `git diff`.
+
+Effect: changing a response shape in Python breaks `tsc` in the frontend. This is end-to-end type safety across Python and TypeScript, and it is one of the more distinctive things about the project. Worth calling out in the README.
+
+## Security-relevant UI requirements
+
+The frontend handles plaintext secrets, so a few behaviors are non-negotiable:
+
+- Secret values are **masked by default**. Revealing requires an explicit click.
+- The value is **not fetched until reveal**. The list endpoint returns metadata only, so an unrevealed secret's plaintext never enters the DOM or the JS heap.
+- Revealed values auto-mask after a timeout.
+- Copy-to-clipboard is available without revealing, since users usually want the value in the clipboard rather than on screen.
+- No secret values in `localStorage`, `sessionStorage`, or URL state.
+- No secret values in error boundaries, console logs, or any client-side error reporting payload.
+
+## Auth flow
+
+Google OAuth. The frontend redirects to the backend's OAuth initiation endpoint; the backend performs the code exchange and sets a session cookie scoped to `.<domain>`.
+
+Because both `app.<domain>` and `api.<domain>` share an apex, the cookie is same-site and no `SameSite=None` workaround is needed. This is the practical reason for buying a domain rather than living on `vercel.app` plus `fly.dev`.
+
+The frontend never handles Google tokens directly and never stores anything auth-related in JS-accessible storage. The cookie is `HttpOnly`.
+
+## Test plan
+
+Test behavior at the boundary, not implementation details. Mock at the fetch layer with MSW rather than mocking hooks.
+
+Priority cases:
+
+- A secret renders masked on initial load.
+- Revealing fires exactly one request.
+- The plaintext value is absent from the DOM before reveal.
+- Revealed value auto-masks after the timeout.
+- API key creation displays the key once and does not re-display it after navigation.
+- Error states render for 401, 403, and network failure.
+
+Explicitly not testing: Tailwind classes, component internals, whether a specific hook was called.
+
+## Structure
+
+```
+web/src/
+├── api/
+│   ├── generated.ts        # generated, committed, do not hand-edit
+│   └── client.ts           # typed fetch wrapper, credentials: include
+├── features/
+│   ├── buckets/
+│   ├── secrets/
+│   └── api-keys/
+├── components/             # shared primitives only
+├── stores/                 # zustand
+├── routes/
+└── lib/
+```
+
+Feature-first, not type-first. Component, hook, and query for one feature live together.
+
+## Deployment
+
+Vercel Hobby, project root directory set to `web/`, framework preset Vite. `VITE_API_URL` points at `api.<domain>`. Vercel ignores everything outside `web/`.
+
+## Open questions
+
+- Dark mode. Trivial with Tailwind, but adds test surface. Probably yes, low priority.
+- Whether the API key creation flow should generate the key client-side and send a hash. Would be a nice zero-knowledge touch for that one credential, but complicates nothing else and may be more confusing than valuable. Leaning no. **Resolved — see A3.**
+- Command palette for bucket and key search. Good demo material, out of scope for v1.
+
+---
+
+## Amendments — 2026-08-03 (SP1 brainstorming)
+
+### A1. `client.ts` unwraps the response envelope
+
+ADR 002 fixes a `{ok: true, data}` / `{ok: false, error}` response envelope, so
+`generated.ts` will describe both arms as a union. Narrowing that union in
+components would spread `ok` checks across the entire codebase — the most
+likely way this frontend degrades.
+
+**Amended:** `api/client.ts` narrows the union exactly once. It returns `data`
+typed as `T` on success and throws a typed `ApiError` carrying `code` and
+`message` on failure. TanStack Query hooks and components deal in domain types
+and thrown errors, never in envelopes.
+
+### A2. The revealed-secrets store takes no middleware
+
+The security requirements above ban secret values from `localStorage`,
+`sessionStorage`, URL state, console, and error payloads — but the
+revealed-values Zustand store is the one place plaintext deliberately lives in
+client state, and it is not covered by any of those rules.
+
+**Amended:** the revealed-secrets store never receives `devtools` or `persist`
+middleware, with an inline comment stating why. The `devtools` middleware would
+stream every revealed value into the Redux DevTools extension, which persists
+across reloads; `persist` would write them to storage the rules already forbid.
+
+### A3. Open question resolved: API keys are generated server-side
+
+Client-side generation is rejected, and for a sharper reason than "may be
+confusing": the server must guarantee the key's entropy and format. Accepting a
+client-supplied hash means trusting the client to have used a CSPRNG, and that
+is unverifiable from a hash.
+
+### A4. Bulk reveal is never available to the web session
+
+The "not fetched until reveal" rule stands unchanged for the UI. ADR 002 A4
+adds a bulk-reveal path for CI, gated on an API key scope that a web session
+cannot hold. The two do not conflict, and the frontend must never request
+`?reveal=true`.
+
+### A5. SP1 installs a subset of this stack
+
+Zustand, Zod, and React Hook Form are not installed in SP1, which has no client
+state and no forms. They arrive with their first real consumer in SP2 and SP3.
+Installing them earlier would mean unused dependencies that no test exercises
+and that CI cannot verify are correctly wired.
+
+### A6. SPA deep links must be verified against the deployed site
+
+React Router in declarative mode needs a catch-all rewrite to `index.html`, or
+direct navigation to a nested route returns 404. Vercel's Vite preset may supply
+this automatically; it must be confirmed on the deployed site rather than
+assumed, with a `vercel.json` rewrite added if it does not. This class of bug
+appears only in production.
