@@ -1,0 +1,88 @@
+# CLAUDE.md
+
+## What this is
+
+A self-hosted secret manager. Users authenticate with Google, organize secrets into buckets, and read them back either through the web UI or programmatically with an API key. Secrets are encrypted at rest using envelope encryption.
+
+Solo project. Architectural decisions are recorded in `docs/decisions/`. Read those before proposing structural changes.
+
+- `001-repository-and-deployment.md` — repo layout, deploy targets, cost constraints
+- `002-backend.md` — crypto design, auth model, API surface, test plan
+- `003-frontend.md` — React stack, security-relevant UI behavior
+
+If a task conflicts with an ADR, say so and ask. Do not quietly deviate.
+
+## Layout
+
+```
+web/     Vite + React 19 + TypeScript
+api/     FastAPI + SQLAlchemy + Postgres
+docs/decisions/
+```
+
+## Commands
+
+```bash
+make dev      # postgres + api hot reload + vite
+make test     # pytest + vitest
+make types    # regenerate web/src/api/generated.ts from the OpenAPI schema
+make lint     # ruff + mypy + eslint + tsc
+```
+
+Run `make test` and `make lint` before declaring work finished. Do not report a task complete on unverified code.
+
+## Security invariants
+
+These are not style preferences. Violating any of them is a bug regardless of whether tests pass.
+
+1. **Plaintext secrets are never logged.** Not in structured logs, not in stack traces, not in exception payloads, not in `print` during debugging. Logging uses an explicit field allowlist, never a request-body dump.
+2. **Credentials never travel in query strings.** `Authorization: Bearer` only. Query params end up in access logs, CDN logs, browser history, and `Referer` headers.
+3. **Never reuse an AES-GCM nonce.** Fresh 96 random bits per encryption call, stored alongside the ciphertext.
+4. **AAD is always set** to `bucket_id || key_name`. This binds ciphertext to its row.
+5. **The KEK never leaves the server** and is never returned by any endpoint, logged, or exposed to the frontend. It is not a user-facing concept.
+6. **API keys are stored as SHA-256 hashes only.** Never bcrypt or Argon2 (wrong tool, adds latency on every request), never plaintext.
+7. **List endpoints return metadata only.** Secret values require the single-key endpoint. The frontend must not fetch a value until the user clicks reveal.
+8. **No secret values in `localStorage`, `sessionStorage`, URL state, or client-side error reporting.**
+
+When touching crypto or auth code, add or update the corresponding test in the same change.
+
+## Backend conventions
+
+- Python 3.12+, type hints everywhere, mypy clean.
+- SQLAlchemy 2.x style (`Mapped[...]`, `mapped_column`), not legacy declarative.
+- `poolclass=NullPool`. Neon's pooled endpoint already runs PgBouncer; pooling on top of it breaks connection accounting.
+- Pydantic v2 for all request and response models. Response models are the source of the OpenAPI schema, so they must be accurate.
+- Every schema change gets an Alembic migration in the same commit.
+- Tests use a real Postgres via testcontainers, not SQLite.
+- Crypto tests use Hypothesis for property-based cases (roundtrip, tamper detection, nonce uniqueness).
+
+## Frontend conventions
+
+- Feature-first directories under `src/features/`, not type-first.
+- TanStack Query owns server state. Do not hand-roll fetch plus loading plus error in `useEffect`.
+- Zustand owns client state only (reveal toggles, modals, toasts).
+- `src/api/generated.ts` is generated. Never hand-edit it. Run `make types` after changing a Pydantic model.
+- Zod schemas for form validation, wired through React Hook Form.
+- Tests mock at the fetch boundary with MSW. Test behavior, not hooks or class names.
+- Tailwind only. No CSS modules, no styled-components.
+
+## Writing style
+
+Applies to code comments, commit messages, docs, and any prose in this repo.
+
+- No em dashes.
+- Plain and direct. No marketing tone.
+- Comments explain why, not what. Skip comments that restate the line below them.
+- Commit messages: conventional commits, imperative mood, scoped (`feat(api): ...`, `fix(web): ...`).
+
+## Working style
+
+- Prefer the smallest change that solves the problem. Do not refactor adjacent code opportunistically.
+- When a task is ambiguous, ask one specific question rather than guessing and building the wrong thing.
+- When you make a design tradeoff that is not covered by an ADR, state it explicitly in your response so it can be reviewed.
+- Do not add dependencies without flagging it first. Every new package is a maintenance and supply-chain cost.
+- If something in an ADR turns out to be wrong once implementation starts, say so directly. The ADRs are decisions, not doctrine.
+
+## Out of scope for v1
+
+Secret versioning and history, zero-knowledge buckets, bulk fetch endpoint, command palette, dark mode. If a task drifts toward these, flag it rather than building it.
