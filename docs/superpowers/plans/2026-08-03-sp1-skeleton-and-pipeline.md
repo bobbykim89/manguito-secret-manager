@@ -348,7 +348,7 @@ from app.config import get_settings
 
 
 class Base(DeclarativeBase):
-    """Declarative base. No models in SP1 — SP2 adds the first ones.
+    """Declarative base. No models in SP1; SP2 adds the first ones.
 
     Declared here so Alembic's env.py can point target_metadata at it without
     being rewritten later.
@@ -955,7 +955,7 @@ Create `api/alembic/versions/0001_baseline.py`:
 """Baseline.
 
 Deliberately empty. Its purpose is to prove that Alembic is wired, runs
-against Neon, and executes in Fly's release step — without inventing a table
+against Neon, and executes in Fly's release step, without inventing a table
 that exists only to be dropped. SP2 stacks the first real schema on top by
 setting down_revision = "0001".
 
@@ -1905,7 +1905,7 @@ check would silently pass.
 git add web/src/api/generated.ts
 printf '\n// deliberate drift\n' >> web/src/api/generated.ts
 git diff --exit-code -- web/src/api/generated.ts \
-  && echo "NO DRIFT DETECTED — BUG" \
+  && echo "NO DRIFT DETECTED, BUG" \
   || echo "drift detected as expected"
 make types
 git diff --exit-code -- web/src/api/generated.ts && echo "clean after regeneration"
@@ -2262,7 +2262,7 @@ Create `README.md`:
 A self-hosted secret manager: encrypted key/value storage with a web UI and a
 programmatic API for CI pipelines.
 
-> **Status:** SP1 — skeleton and pipeline. The deployment path is complete and
+> **Status:** SP1, skeleton and pipeline. The deployment path is complete and
 > live; no secrets are stored yet. See `docs/superpowers/specs/` for the
 > sub-project plan and `docs/adr/` for the decision record.
 
@@ -2289,7 +2289,7 @@ make types
 ```
 
 `api/scripts/dump_openapi.py` imports the FastAPI app object and writes the
-schema to stdout — no server, no port, no readiness polling. CI runs the same
+schema to stdout: no server, no port, no readiness polling. CI runs the same
 script and fails if the committed file differs.
 
 The effect: **changing a response shape in Python breaks `tsc` in the
@@ -2326,7 +2326,7 @@ docs/     ADRs and sub-project specs
 
 ## Testing
 
-The backend runs against a real Postgres via testcontainers, not SQLite —
+The backend runs against a real Postgres via testcontainers, not SQLite, because
 database behaviour differences matter in this project. The frontend mocks at
 the fetch layer with MSW rather than mocking hooks.
 
