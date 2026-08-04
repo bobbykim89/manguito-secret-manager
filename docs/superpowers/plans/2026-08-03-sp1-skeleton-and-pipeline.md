@@ -2252,7 +2252,7 @@ createRoot(rootElement).render(
 - [ ] **Step 10: Run the whole frontend suite**
 
 Run: `cd web && npm test`
-Expected: 12 passed
+Expected: 15 passed (2 router, 9 client, 4 health)
 
 - [ ] **Step 11: Run lint, typecheck, and the full suite**
 
