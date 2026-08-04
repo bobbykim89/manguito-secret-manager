@@ -1321,6 +1321,7 @@ Output is sorted and fixed-indent so generated types stay diff-stable."
 - Create: `web/index.html`
 - Create: `web/src/main.tsx`
 - Create: `web/src/index.css`
+- Create: `web/src/vite-env.d.ts`
 - Create: `web/src/routes/router.tsx`
 - Create: `web/src/test/setup.ts`
 - Create: `web/.env.example`
@@ -1530,6 +1531,13 @@ Create `web/src/index.css`:
 
 ```css
 @import "tailwindcss";
+```
+
+Create `web/src/vite-env.d.ts`. Without it `import.meta.env` has no type and
+`tsc -b` fails in strict mode as soon as Task 8 reads `VITE_API_URL`:
+
+```ts
+/// <reference types="vite/client" />
 ```
 
 Create `web/.env.example`:
