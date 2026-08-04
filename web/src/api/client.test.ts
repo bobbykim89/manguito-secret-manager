@@ -56,6 +56,36 @@ describe("client", () => {
     });
   });
 
+  it("throws ApiError (not a raw TypeError) when the failure arm has no error key", async () => {
+    server.use(
+      http.get(`${BASE}/v1/health`, () => HttpResponse.json({ ok: false }, { status: 500 })),
+    );
+
+    const rejection = expect(client.get("/v1/health")).rejects;
+    await rejection.toBeInstanceOf(ApiError);
+    await rejection.toMatchObject({ code: "INVALID_RESPONSE" });
+  });
+
+  it("throws ApiError with INVALID_RESPONSE when the failure arm's error is not an object", async () => {
+    server.use(
+      http.get(`${BASE}/v1/health`, () =>
+        HttpResponse.json({ ok: false, error: "boom" }, { status: 500 }),
+      ),
+    );
+
+    await expect(client.get("/v1/health")).rejects.toMatchObject({
+      code: "INVALID_RESPONSE",
+    });
+  });
+
+  it("throws ApiError with INVALID_RESPONSE rather than resolving to undefined when the success arm has no data", async () => {
+    server.use(http.get(`${BASE}/v1/health`, () => HttpResponse.json({ ok: true })));
+
+    await expect(client.get("/v1/health")).rejects.toMatchObject({
+      code: "INVALID_RESPONSE",
+    });
+  });
+
   it("sends credentials so the session cookie is attached", async () => {
     let credentials: RequestCredentials | undefined;
     server.use(

@@ -24,8 +24,26 @@ type Envelope<T> =
 
 const BASE_URL: string = import.meta.env.VITE_API_URL ?? "";
 
+function isErrorBody(value: unknown): value is { code: string; message: string } {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const candidate = value as { code?: unknown; message?: unknown };
+  return typeof candidate.code === "string" && typeof candidate.message === "string";
+}
+
 function isEnvelope<T>(body: unknown): body is Envelope<T> {
-  return typeof body === "object" && body !== null && typeof (body as Envelope<T>).ok === "boolean";
+  if (typeof body !== "object" || body === null) {
+    return false;
+  }
+  const candidate = body as { ok?: unknown; data?: unknown; error?: unknown };
+  if (candidate.ok === true) {
+    return "data" in candidate;
+  }
+  if (candidate.ok === false) {
+    return isErrorBody(candidate.error);
+  }
+  return false;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
