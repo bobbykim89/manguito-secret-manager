@@ -3,9 +3,12 @@
 A self-hosted secret manager: encrypted key/value storage with a web UI and a
 programmatic API for CI pipelines.
 
-> **Status:** SP1, skeleton and pipeline. The deployment path is complete and
-> live; no secrets are stored yet. See `docs/superpowers/specs/` for the
-> sub-project plan and `docs/adr/` for the decision record.
+> **Status:** SP1, skeleton and pipeline. The application runs end to end
+> locally and the deployment configuration is written and verified, but
+> nothing is deployed yet. Provisioning the database, backend, frontend, and
+> domain is the remaining step. No secrets are stored: there is no schema, no
+> authentication, and no cryptography yet. See `docs/superpowers/specs/` for
+> the sub-project plan and `docs/adr/` for the decision record.
 
 ## Architecture
 
@@ -30,8 +33,8 @@ make types
 ```
 
 `api/scripts/dump_openapi.py` imports the FastAPI app object and writes the
-schema to stdout: no server, no port, no readiness polling. CI runs the same
-script and fails if the committed file differs.
+schema to stdout: no server, no port, no readiness polling. CI will run the
+same script and fail the build if the committed file differs.
 
 The effect: **changing a response shape in Python breaks `tsc` in the
 frontend.**
