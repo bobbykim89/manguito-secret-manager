@@ -9,7 +9,7 @@ from app.config import get_settings
 
 
 class Base(DeclarativeBase):
-    """Declarative base. No models in SP1 — SP2 adds the first ones.
+    """Declarative base. No models in SP1; SP2 adds the first ones.
 
     Declared here so Alembic's env.py can point target_metadata at it without
     being rewritten later.
