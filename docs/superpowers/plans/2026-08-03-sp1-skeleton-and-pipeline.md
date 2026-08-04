@@ -2666,30 +2666,27 @@ gh pr checks --watch
 
 Expected: all three checks pass.
 
-- [ ] **Step 6: Merge and configure branch protection**
+- [ ] **Step 6: Restore the branch to a green state**
 
-```bash
-gh pr merge --squash --delete-branch
-```
+Undo the two deliberate breakages from Steps 3 and 4 if any remain, and confirm
+the pull request is mergeable with all three checks passing.
 
-Then in GitHub → Settings → Branches → add a rule for `main`:
+**Do not merge here, and do not enable branch protection yet.** Both are
+deferred until after the final whole-branch review, for two reasons. Merging
+now would land CI on `main` ahead of the rest of SP1, leaving the trunk in a
+state no review has covered. And enabling required status checks before the
+first green merge exists can block that merge on checks GitHub has not yet
+recorded a passing run for.
+
+- [ ] **Step 7: Record what branch protection will require**
+
+The settings to apply after SP1 merges, on `main`:
 - Require a pull request before merging.
-- Require status checks to pass: **`api`**, **`web`**, **`types-drift`**. Do not add `deploy`.
+- Require status checks to pass: **`api`**, **`web`**, **`types-drift`**. Do not
+  add `deploy`; it runs only after those three and gating on it would deadlock.
 
-- [ ] **Step 7: Verify branch protection rejects a direct push**
-
-```bash
-git checkout main && git pull
-printf '\n' >> README.md
-git commit -am "docs: verify branch protection"
-git push
-```
-
-Expected: the push is **rejected**. Then undo the local commit:
-
-```bash
-git reset --hard origin/main
-```
+Applying them is a persistent change to repository configuration and belongs to
+whoever owns the repository, not to the implementation run.
 
 ---
 
