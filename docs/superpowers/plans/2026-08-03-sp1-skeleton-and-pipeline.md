@@ -2327,9 +2327,15 @@ Create `README.md`:
 A self-hosted secret manager: encrypted key/value storage with a web UI and a
 programmatic API for CI pipelines.
 
-> **Status:** SP1, skeleton and pipeline. The deployment path is complete and
-> live; no secrets are stored yet. See `docs/superpowers/specs/` for the
-> sub-project plan and `docs/adr/` for the decision record.
+> **Status:** SP1, skeleton and pipeline. The application runs end to end
+> locally and the deployment configuration is written and verified, but
+> nothing is deployed yet. Provisioning the database, backend, frontend, and
+> domain is the remaining step. No secrets are stored: there is no schema, no
+> authentication, and no cryptography yet. See `docs/superpowers/specs/` for
+> the sub-project plan and `docs/adr/` for the decision record.
+
+Task 12 replaces this block with the live URLs once the deploy lands. Until
+then it must not claim a running system.
 
 ## Architecture
 
