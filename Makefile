@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help db-up db-down test lint migrate types
+.PHONY: help db-up db-down test lint migrate types install dev
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -26,3 +26,15 @@ types: ## Regenerate web/src/api/generated.ts from the FastAPI schema
 	cd api && uv run python scripts/dump_openapi.py > $(CURDIR)/openapi.json
 	cd web && npx openapi-typescript $(CURDIR)/openapi.json -o src/api/generated.ts
 	rm -f $(CURDIR)/openapi.json
+
+install: ## Install backend and frontend dependencies
+	cd api && uv sync
+	cd web && npm install
+
+dev: db-up migrate ## Run Postgres, the API with reload, and the Vite dev server
+	@echo "API  → http://localhost:8000"
+	@echo "Web  → http://localhost:5173"
+	@trap 'kill 0' EXIT; \
+	(cd api && uv run uvicorn app.main:app --reload --port 8000) & \
+	(cd web && npm run dev) & \
+	wait
