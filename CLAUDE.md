@@ -4,11 +4,13 @@
 
 A self-hosted secret manager. Users authenticate with Google, organize secrets into buckets, and read them back either through the web UI or programmatically with an API key. Secrets are encrypted at rest using envelope encryption.
 
-Solo project. Architectural decisions are recorded in `docs/decisions/`. Read those before proposing structural changes.
+Solo project. Architectural decisions are recorded in `docs/adr/`. Read those before proposing structural changes. Each ADR carries an Amendments section at the end; amendments override the body above them.
 
-- `001-repository-and-deployment.md` — repo layout, deploy targets, cost constraints
-- `002-backend.md` — crypto design, auth model, API surface, test plan
-- `003-frontend.md` — React stack, security-relevant UI behavior
+- `0001-repository-structure-and-deployment.md`: repo layout, deploy targets, cost constraints
+- `0002-backend-architecture-cryptography-and-auth.md`: crypto design, auth model, API surface, test plan
+- `0003-frontend-architecture.md`: React stack, security-relevant UI behavior
+
+Sub-project specs live in `docs/superpowers/specs/` and implementation plans in `docs/superpowers/plans/`.
 
 If a task conflicts with an ADR, say so and ask. Do not quietly deviate.
 
@@ -17,7 +19,7 @@ If a task conflicts with an ADR, say so and ask. Do not quietly deviate.
 ```
 web/     Vite + React 19 + TypeScript
 api/     FastAPI + SQLAlchemy + Postgres
-docs/decisions/
+docs/adr/
 ```
 
 ## Commands
