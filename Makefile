@@ -1,3 +1,4 @@
+SHELL := /bin/bash
 .DEFAULT_GOAL := help
 .PHONY: help db-up db-down test lint migrate types install dev
 
@@ -37,4 +38,4 @@ dev: db-up migrate ## Run Postgres, the API with reload, and the Vite dev server
 	@trap 'kill 0' EXIT; \
 	(cd api && uv run uvicorn app.main:app --reload --port 8000) & \
 	(cd web && npm run dev) & \
-	wait
+	wait -n # return as soon as either server exits, so the trap kills the other instead of leaving it orphaned
