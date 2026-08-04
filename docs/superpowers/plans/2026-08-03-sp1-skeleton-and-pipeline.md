@@ -2285,21 +2285,28 @@ typed client, Query hook, rendered assertion."
 
 In `Makefile`, add `dev` and `install` to `.PHONY` and append:
 
+Also add `SHELL := /bin/bash` near the top of the file, above `.DEFAULT_GOAL`.
+`wait -n` below is a bash builtin, and make otherwise runs recipes under
+`/bin/sh`, which on many systems is dash and rejects it.
+
 ```make
 install: ## Install backend and frontend dependencies
 	cd api && uv sync
 	cd web && npm install
 
 dev: db-up migrate ## Run Postgres, the API with reload, and the Vite dev server
-	@echo "API  → http://localhost:8000"
-	@echo "Web  → http://localhost:5173"
+	@echo "API  -> http://localhost:8000"
+	@echo "Web  -> http://localhost:5173"
 	@trap 'kill 0' EXIT; \
 	(cd api && uv run uvicorn app.main:app --reload --port 8000) & \
 	(cd web && npm run dev) & \
-	wait
+	wait -n
 ```
 
-`trap 'kill 0' EXIT` means one Ctrl-C stops both processes rather than orphaning the API.
+`trap 'kill 0' EXIT` means one Ctrl-C stops both processes rather than
+orphaning the API. `wait -n` returns as soon as the first job exits, so if one
+server dies on its own the trap still fires and stops the other. A bare `wait`
+would block until every job finished, leaving the survivor running.
 
 - [ ] **Step 2: Verify the clean-checkout path**
 
