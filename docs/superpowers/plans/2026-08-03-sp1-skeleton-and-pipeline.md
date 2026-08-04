@@ -1960,6 +1960,7 @@ throwing ApiError, so no ok checks reach components. (ADR 003 A1)"
 **Files:**
 - Create: `web/src/features/health/useHealth.ts`
 - Create: `web/src/features/health/HealthPage.tsx`
+- Create: `web/src/routes/NotFound.tsx`
 - Create: `web/src/test/render.tsx`
 - Test: `web/src/features/health/HealthPage.test.tsx`
 - Modify: `web/src/routes/router.tsx`
@@ -2115,20 +2116,29 @@ Expected: 4 passed
 
 - [ ] **Step 7: Mount the page on the index route**
 
-In `web/src/routes/router.tsx`, delete the local `Home` component and import the page instead. The file becomes:
+Task 7 left `router.tsx` exporting both components and non-component values,
+which trips `react-refresh/only-export-components`. Resolve it here by moving
+the last component out, so `router.tsx` holds routing configuration only.
+
+Create `web/src/routes/NotFound.tsx`:
 
 ```tsx
-import { createBrowserRouter, type RouteObject } from "react-router";
-
-import { HealthPage } from "../features/health/HealthPage";
-
-function NotFound() {
+export function NotFound() {
   return (
     <main className="mx-auto max-w-2xl p-8">
       <p>Page not found.</p>
     </main>
   );
 }
+```
+
+Then replace `web/src/routes/router.tsx` entirely:
+
+```tsx
+import { createBrowserRouter, type RouteObject } from "react-router";
+
+import { HealthPage } from "../features/health/HealthPage";
+import { NotFound } from "./NotFound";
 
 /** Exported separately so tests can build a memory router over them. */
 export const routes: RouteObject[] = [
@@ -2138,6 +2148,8 @@ export const routes: RouteObject[] = [
 
 export const router = createBrowserRouter(routes);
 ```
+
+`npm run lint` must now be warning-free, not merely exit zero.
 
 - [ ] **Step 8: Update the router test for the new index route**
 
