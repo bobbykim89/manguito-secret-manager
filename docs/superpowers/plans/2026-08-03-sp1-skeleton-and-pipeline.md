@@ -271,7 +271,15 @@ import os
 from collections.abc import Iterator
 
 import pytest
-from testcontainers.postgres import PostgresContainer
+from testcontainers.community.postgres import PostgresContainer
+
+# app.main builds the FastAPI app at import time, which validates Settings.
+# Test modules import it at module scope, so these must be set before pytest
+# collects them. The postgres_url fixture overwrites DATABASE_URL with the real
+# container URL and clears the cached settings and engine.
+os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://placeholder/placeholder")
+os.environ.setdefault("CORS_ORIGINS", "http://localhost:5173")
+os.environ.setdefault("ENVIRONMENT", "test")
 
 
 @pytest.fixture(scope="session")
@@ -654,6 +662,8 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'app.main'`
 Create `api/app/routers/__init__.py` as an empty file, then create `api/app/routers/health.py`:
 
 ```python
+from typing import Annotated
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy import text
@@ -671,7 +681,7 @@ class HealthData(BaseModel):
 
 
 @router.get("/health", response_model=Ok[HealthData], responses={503: {"model": Err}})
-def health(session: Session = Depends(get_db)) -> Ok[HealthData]:
+def health(session: Annotated[Session, Depends(get_db)]) -> Ok[HealthData]:
     """Prove the process is up and the database is reachable.
 
     Uses SELECT 1 rather than querying a table, because SP1 deliberately
