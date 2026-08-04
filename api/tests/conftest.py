@@ -4,6 +4,14 @@ from collections.abc import Iterator
 import pytest
 from testcontainers.community.postgres import PostgresContainer
 
+# app.main builds the FastAPI app at import time, which validates Settings.
+# Test modules import it at module scope, so these must be set before
+# collection. The postgres_url fixture overwrites DATABASE_URL with the real
+# container URL and clears the cached settings and engine.
+os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://placeholder/placeholder")
+os.environ.setdefault("CORS_ORIGINS", "http://localhost:5173")
+os.environ.setdefault("ENVIRONMENT", "test")
+
 
 @pytest.fixture(scope="session")
 def postgres_url() -> Iterator[str]:
