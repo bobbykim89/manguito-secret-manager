@@ -11,11 +11,13 @@ db-up: ## Start local Postgres
 db-down: ## Stop local Postgres
 	docker compose down
 
-test: ## Run backend tests
+test: ## Run backend and frontend tests
 	cd api && uv run pytest
+	cd web && npm test
 
-lint: ## Run backend linters
+lint: ## Run backend and frontend linters
 	cd api && uv run ruff check . && uv run ruff format --check . && uv run mypy app
+	cd web && npm run lint && npm run typecheck
 
 migrate: ## Apply migrations to the local database
 	cd api && uv run alembic upgrade head
