@@ -1377,7 +1377,7 @@ Create `web/package.json`:
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.19.0",
     "vite": "^6.0.0",
-    "vitest": "^2.1.0"
+    "vitest": "^3.0.0"
   }
 }
 ```
@@ -1391,11 +1391,26 @@ Expected: `web/package-lock.json` and `web/node_modules/` are created.
 
 - [ ] **Step 3: Create the TypeScript configuration**
 
+Three files, matching the layout `tsc -b` expects: an aggregator that owns no
+files, plus one project per compilation target. A single combined
+`tsconfig.json` does not build under `tsc -b`, because the root of a build
+graph cannot both reference projects and compile sources.
+
 Create `web/tsconfig.json`:
 
 ```json
 {
+  "files": [],
+  "references": [{ "path": "./tsconfig.app.json" }, { "path": "./tsconfig.node.json" }]
+}
+```
+
+Create `web/tsconfig.app.json`:
+
+```json
+{
   "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
     "target": "ES2022",
     "useDefineForClassFields": true,
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
@@ -1415,8 +1430,7 @@ Create `web/tsconfig.json`:
     "noUncheckedIndexedAccess": true,
     "types": ["vitest/globals", "@testing-library/jest-dom"]
   },
-  "include": ["src"],
-  "references": [{ "path": "./tsconfig.node.json" }]
+  "include": ["src"]
 }
 ```
 
