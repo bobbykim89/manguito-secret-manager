@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help db-up db-down test lint
+.PHONY: help db-up db-down test lint migrate
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -16,3 +16,6 @@ test: ## Run backend tests
 
 lint: ## Run backend linters
 	cd api && uv run ruff check . && uv run ruff format --check . && uv run mypy app
+
+migrate: ## Apply migrations to the local database
+	cd api && uv run alembic upgrade head
