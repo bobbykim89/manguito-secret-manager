@@ -1,4 +1,4 @@
-from collections.abc import Iterator
+from collections.abc import Generator
 from functools import lru_cache
 
 from sqlalchemy import Engine, create_engine
@@ -25,6 +25,6 @@ def get_engine() -> Engine:
     return create_db_engine(get_settings().database_url)
 
 
-def get_db() -> Iterator[Session]:
+def get_db() -> Generator[Session, None, None]:
     with Session(get_engine()) as session:
         yield session

@@ -17,7 +17,7 @@ test: ## Run backend and frontend tests
 	cd web && npm test
 
 lint: ## Run backend and frontend linters
-	cd api && uv run ruff check . && uv run ruff format --check . && uv run mypy app
+	cd api && uv run ruff check . && uv run ruff format --check . && uv run mypy app scripts alembic tests
 	cd web && npm run lint && npm run typecheck
 
 migrate: ## Apply migrations to the local database
@@ -25,7 +25,7 @@ migrate: ## Apply migrations to the local database
 
 types: ## Regenerate web/src/api/generated.ts from the FastAPI schema
 	cd api && uv run python scripts/dump_openapi.py > $(CURDIR)/openapi.json
-	cd web && npx openapi-typescript $(CURDIR)/openapi.json -o src/api/generated.ts
+	cd web && npm exec --no-install openapi-typescript -- $(CURDIR)/openapi.json -o src/api/generated.ts
 	rm -f $(CURDIR)/openapi.json
 
 install: ## Install backend and frontend dependencies

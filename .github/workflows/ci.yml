@@ -56,7 +56,7 @@ jobs:
       - name: Mypy
         if: steps.filter.outputs.api == 'true'
         working-directory: api
-        run: uv run mypy app
+        run: uv run mypy app scripts alembic tests
 
       - name: Pytest
         # testcontainers needs a Docker daemon; ubuntu-latest runners have one.
