@@ -2460,9 +2460,17 @@ on:
   pull_request:
 
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Superseded pull request runs are worth cancelling. Pushes to main are not:
+  # cancelling one kills an in-flight deploy, and the job-level
+  # deploy-production group cannot protect a run the workflow already cancelled.
+  group: ci-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Path filtering happens inside each job, never with a paths: key on the
+# trigger or the job. A job skipped by a paths: filter reports no status at
+# all, so a required check never arrives and the pull request cannot merge.
+# Every job here checks out and evaluates its filter unconditionally, then
+# skips the work but still reports. See ADR 0001 A1.
 jobs:
   api:
     runs-on: ubuntu-latest
