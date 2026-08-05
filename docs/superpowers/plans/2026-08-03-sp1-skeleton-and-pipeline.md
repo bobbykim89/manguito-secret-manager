@@ -2796,6 +2796,11 @@ measured against a real figure.
 Import the GitHub repository in Vercel with:
 - **Root directory:** `web`
 - **Framework preset:** Vite
+
+Vercel detects pnpm from `web/pnpm-lock.yaml` and installs with
+`pnpm install --frozen-lockfile` on its own. Do not override the install
+command; an explicit `npm install` would ignore the lockfile and resolve
+different versions than CI tested.
 - **Environment variable:** `VITE_API_URL` = `https://api.<domain>`
 
 Then add `app.<domain>` as a custom domain and create the DNS record Vercel
