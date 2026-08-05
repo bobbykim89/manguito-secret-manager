@@ -41,7 +41,8 @@ frontend.**
 
 ## Local development
 
-Requires Docker, [uv](https://docs.astral.sh/uv/), and Node 22+.
+Requires Docker, [uv](https://docs.astral.sh/uv/), Node 22+, and
+[pnpm](https://pnpm.io/) 10+ (`corepack enable pnpm` if you do not have it).
 
 ```bash
 cp .env.example .env

@@ -1,0 +1,6 @@
+# No postinstall scripts run in this project. esbuild resolves its platform
+# binary through optionalDependencies, and msw's script only writes a browser
+# service worker, which is unused here since tests import msw/node.
+ignoredBuiltDependencies:
+  - esbuild
+  - msw
