@@ -255,3 +255,84 @@ Per-key rate limiting is listed above without a mechanism. With Fly's
 `min_machines_running = 0`, an in-process counter resets every time the machine
 stops, making the limit unenforceable. SP4 must back it with Postgres or an
 external store.
+
+---
+
+## Amendments, 2026-08-04 (SP2 brainstorming)
+
+### A8. API keys move to SP3, and A6's prefix decision moves with them
+
+A6 says to choose the replacement prefix "during SP2". It cannot usefully be
+chosen there, because API keys themselves cannot usefully be built there: a
+key's `scopes` are defined above as a list of bucket ids, and buckets do not
+exist until SP3. A key issued in SP2 would scope to nothing and authorize
+nothing, since the only endpoint is a public health check.
+
+**Amended:** API key issuance and verification, and the prefix choice, both
+belong to SP3, beside the buckets they scope to, where `scopes` can be
+validated against real ids.
+
+### A9. Sessions and API keys no longer share a transport
+
+The Authentication section opens with "Two credential systems sharing one
+transport header. The server branches on token prefix." A3 obsoleted this
+without saying so: sessions now travel in a cookie and API keys in the
+`Authorization` header. Different transports, no shared header.
+
+**Amended:** there is no prefix branching. Session tokens need no prefix at
+all, because nothing else occupies the cookie they arrive in. Only API keys
+need one, which is what A6 and A8 are about. Do not implement a branch that
+cannot fire.
+
+### A10. The OAuth flow requires `state` and PKCE
+
+No ADR mentions CSRF protection on the OAuth flow. Without a `state` parameter
+the callback accepts any authorization code an attacker can cause a victim's
+browser to submit. That is login CSRF: the victim is silently authenticated as
+the attacker and stores secrets in the attacker's account.
+
+**Amended:** `/v1/auth/google/start` generates a random `state` and a PKCE
+verifier and stores both in a short-lived `HttpOnly` cookie; the callback
+rejects any request whose `state` does not match, and clears that cookie on
+every exit path including failures.
+
+The cookie is deliberately not signed. The protection is a double submit
+comparison, which binds the callback to the browser that began the flow.
+Tampering gains an attacker nothing, since they would still need a Google
+authorization matching the value they chose.
+
+Process memory is not an option for this state: `min_machines_running = 0`
+means the machine can stop between the redirect and the callback, which would
+fail logins intermittently and confusingly.
+
+### A11. Registration is open, and identity is Google's `sub`
+
+Nothing above states who may create an account. Deployed with Google OAuth,
+the default is anyone on the internet, and that default was chosen
+deliberately so a reviewer can try the running system.
+
+**Amended, three parts:**
+
+- **Registration is open.** Any Google account may sign in and gets a user row
+  on first login. The consequence: cross-user isolation is load bearing rather
+  than theoretical, so the rule above that cross-user access returns 404 rather
+  than 403 becomes the most important behavior in SP3.
+- **`google_sub` is the identity**, not email. `sub` is stable and unique
+  forever; email addresses change and can be reassigned. Email is a mutable
+  attribute refreshed on each login.
+- **`email_verified` is checked.** With open registration, accepting an
+  unverified address would let someone claim an email they do not control.
+
+If the instance ever attracts unwanted signups, the mitigation is an email
+allowlist in configuration, which is a config change rather than a schema one.
+
+### A12. Session lifetime and storage
+
+A3 settled the mechanism but not the lifetime or the storage form.
+
+**Amended:** sessions expire absolutely seven days after login, with no
+sliding renewal, so a stolen session cannot renew itself indefinitely and no
+write is needed on every authenticated request. The token is stored as a
+SHA-256 hash, for the same reason API keys are: a 256 bit random token has no
+brute force surface, so a slow KDF is pure per-request latency, and hashing
+means a stolen database dump does not hand over live sessions.
