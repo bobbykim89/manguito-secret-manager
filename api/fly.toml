@@ -1,4 +1,4 @@
-app = "secretbox-api"
+app = "manguito-secret-manager-api"
 primary_region = "sea"
 
 [build]

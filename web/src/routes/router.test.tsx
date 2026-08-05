@@ -18,7 +18,7 @@ describe("router", () => {
 
     renderWithProviders(<RouterProvider router={router} />);
 
-    expect(await screen.findByRole("heading", { name: /secretbox/i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /manguito secret manager/i })).toBeInTheDocument();
   });
 
   it("renders a not-found message for an unknown path", async () => {

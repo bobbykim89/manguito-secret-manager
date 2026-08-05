@@ -2,15 +2,15 @@ services:
   postgres:
     image: postgres:17-alpine
     environment:
-      POSTGRES_USER: secretbox
-      POSTGRES_PASSWORD: secretbox
-      POSTGRES_DB: secretbox
+      POSTGRES_USER: manguito
+      POSTGRES_PASSWORD: manguito
+      POSTGRES_DB: manguito
     ports:
       - "5433:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U secretbox"]
+      test: ["CMD-SHELL", "pg_isready -U manguito"]
       interval: 5s
       timeout: 5s
       retries: 10

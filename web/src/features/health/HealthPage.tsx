@@ -5,7 +5,7 @@ export function HealthPage() {
 
   return (
     <main className="mx-auto max-w-2xl p-8">
-      <h1 className="text-2xl font-semibold">secretbox</h1>
+      <h1 className="text-2xl font-semibold">Manguito Secret Manager</h1>
 
       {isPending && <p className="mt-4 text-slate-500">Checking API…</p>}
 

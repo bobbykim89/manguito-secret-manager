@@ -1,5 +1,5 @@
 {
-  "name": "secretbox-web",
+  "name": "manguito-secret-manager-web",
   "private": true,
   "type": "module",
   "scripts": {

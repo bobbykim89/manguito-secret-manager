@@ -1,4 +1,4 @@
-# secretbox
+# Manguito Secret Manager
 
 A self-hosted secret manager: encrypted key/value storage with a web UI and a
 programmatic API for CI pipelines.

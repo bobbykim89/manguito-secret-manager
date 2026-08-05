@@ -8,7 +8,7 @@ from app.routers import health
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    application = FastAPI(title="secretbox API", version="0.1.0")
+    application = FastAPI(title="manguito-secret-manager API", version="0.1.0")
 
     # allow_credentials with a wildcard origin is rejected by browsers, and
     # SP2's session cookie depends on credentialed requests working.
