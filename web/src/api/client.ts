@@ -6,6 +6,8 @@
  * components is the most likely way this codebase degrades. (ADR 003 A1)
  */
 
+import type { components } from "./generated";
+
 export class ApiError extends Error {
   readonly code: string;
   readonly status: number;
@@ -18,13 +20,27 @@ export class ApiError extends Error {
   }
 }
 
-type Envelope<T> =
-  | { ok: true; data: T }
-  | { ok: false; error: { code: string; message: string } };
+type ErrEnvelope = components["schemas"]["Err"];
+type Envelope<T> = { ok: true; data: T } | ErrEnvelope;
+
+type AssertTrue<T extends true> = T;
+
+/**
+ * Fails tsc if the Python envelope's success arm stops matching the shape this
+ * module narrows. The success arm has to stay generic in T, so it cannot be
+ * taken from the generated types directly; without this check, renaming a
+ * field in Pydantic would regenerate cleanly and leave every test passing
+ * against a stale shape.
+ */
+export type OkArmMatchesGeneratedSchema = AssertTrue<
+  components["schemas"]["Ok_HealthData_"] extends { ok: true; data: unknown }
+    ? true
+    : "The generated success arm no longer matches { ok: true; data: ... }"
+>;
 
 const BASE_URL: string = import.meta.env.VITE_API_URL ?? "";
 
-function isErrorBody(value: unknown): value is { code: string; message: string } {
+function isErrorBody(value: unknown): value is ErrEnvelope["error"] {
   if (typeof value !== "object" || value === null) {
     return false;
   }
