@@ -4,9 +4,9 @@ A self-hosted secret manager: encrypted key/value storage with a web UI and a
 programmatic API for CI pipelines.
 
 > **Status:** SP1, skeleton and pipeline. The application runs end to end
-> locally and the deployment configuration is written and verified, but
-> nothing is deployed yet. Provisioning the database, backend, frontend, and
-> domain is the remaining step. No secrets are stored: there is no schema, no
+> locally and the deployment configuration is written, but it has never been
+> applied and nothing is deployed yet. Provisioning the database, backend,
+> frontend, and domain is the remaining step. No secrets are stored: there is no schema, no
 > authentication, and no cryptography yet. See `docs/superpowers/specs/` for
 > the sub-project plan and `docs/adr/` for the decision record.
 
@@ -33,15 +33,15 @@ make types
 ```
 
 `api/scripts/dump_openapi.py` imports the FastAPI app object and writes the
-schema to stdout: no server, no port, no readiness polling. CI will run the
-same script and fail the build if the committed file differs.
+schema to stdout: no server, no port, no readiness polling. CI runs the same
+script and fails the build if the committed file differs.
 
 The effect: **changing a response shape in Python breaks `tsc` in the
 frontend.**
 
 ## Local development
 
-Requires Docker, [uv](https://docs.astral.sh/uv/), and Node 20+.
+Requires Docker, [uv](https://docs.astral.sh/uv/), and Node 22+.
 
 ```bash
 cp .env.example .env
@@ -54,11 +54,15 @@ Then open <http://localhost:5173>.
 
 | Target | Does |
 |---|---|
-| `make dev` | Postgres, API with reload, Vite dev server |
+| `make help` | List the targets |
+| `make install` | Install backend and frontend dependencies |
+| `make dev` | Postgres, API with reload, Vite dev server. Runs `migrate` first, so a root `.env` has to exist or it exits with a pydantic `ValidationError` |
 | `make test` | pytest and vitest |
 | `make lint` | ruff, mypy, eslint, tsc |
 | `make types` | Regenerate `web/src/api/generated.ts` |
 | `make migrate` | Apply migrations locally |
+| `make db-up` | Start local Postgres |
+| `make db-down` | Stop local Postgres |
 
 ## Repository layout
 

@@ -40,7 +40,7 @@ These are not style preferences. Violating any of them is a bug regardless of wh
 1. **Plaintext secrets are never logged.** Not in structured logs, not in stack traces, not in exception payloads, not in `print` during debugging. Logging uses an explicit field allowlist, never a request-body dump.
 2. **Credentials never travel in query strings.** `Authorization: Bearer` only. Query params end up in access logs, CDN logs, browser history, and `Referer` headers.
 3. **Never reuse an AES-GCM nonce.** Fresh 96 random bits per encryption call, stored alongside the ciphertext.
-4. **AAD is always set** to `bucket_id || key_name`. This binds ciphertext to its row.
+4. **AAD is always set**, and its encoding must be unambiguous: length-prefix the first component, or use another encoding no two distinct `(bucket_id, key_name)` pairs can collide in. Plain concatenation is not injective, so bucket `ab` with key `c` and bucket `a` with key `bc` produce the same AAD and ciphertext relocates cleanly between the two rows, which is the attack the AAD exists to prevent. See ADR 002 A2.
 5. **The KEK never leaves the server** and is never returned by any endpoint, logged, or exposed to the frontend. It is not a user-facing concept.
 6. **API keys are stored as SHA-256 hashes only.** Never bcrypt or Argon2 (wrong tool, adds latency on every request), never plaintext.
 7. **List endpoints return metadata only.** Secret values require the single-key endpoint. The frontend must not fetch a value until the user clicks reveal.
@@ -87,4 +87,6 @@ Applies to code comments, commit messages, docs, and any prose in this repo.
 
 ## Out of scope for v1
 
-Secret versioning and history, zero-knowledge buckets, bulk fetch endpoint, command palette, dark mode. If a task drifts toward these, flag it rather than building it.
+Secret versioning and history, zero-knowledge buckets, command palette, dark mode. If a task drifts toward these, flag it rather than building it.
+
+Bulk fetch is in scope, but gated: `?reveal=true` is reachable only by an API key carrying an explicit reveal scope, never by a web session, and is rejected rather than ignored without that scope. See ADR 002 A4.

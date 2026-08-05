@@ -2,6 +2,9 @@
   "name": "manguito-secret-manager-web",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
