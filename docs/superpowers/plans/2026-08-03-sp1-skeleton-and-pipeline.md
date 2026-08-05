@@ -271,7 +271,15 @@ import os
 from collections.abc import Iterator
 
 import pytest
-from testcontainers.postgres import PostgresContainer
+from testcontainers.community.postgres import PostgresContainer
+
+# app.main builds the FastAPI app at import time, which validates Settings.
+# Test modules import it at module scope, so these must be set before pytest
+# collects them. The postgres_url fixture overwrites DATABASE_URL with the real
+# container URL and clears the cached settings and engine.
+os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://placeholder/placeholder")
+os.environ.setdefault("CORS_ORIGINS", "http://localhost:5173")
+os.environ.setdefault("ENVIRONMENT", "test")
 
 
 @pytest.fixture(scope="session")
@@ -348,7 +356,7 @@ from app.config import get_settings
 
 
 class Base(DeclarativeBase):
-    """Declarative base. No models in SP1 — SP2 adds the first ones.
+    """Declarative base. No models in SP1; SP2 adds the first ones.
 
     Declared here so Alembic's env.py can point target_metadata at it without
     being rewritten later.
@@ -654,6 +662,8 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'app.main'`
 Create `api/app/routers/__init__.py` as an empty file, then create `api/app/routers/health.py`:
 
 ```python
+from typing import Annotated
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy import text
@@ -671,7 +681,7 @@ class HealthData(BaseModel):
 
 
 @router.get("/health", response_model=Ok[HealthData], responses={503: {"model": Err}})
-def health(session: Session = Depends(get_db)) -> Ok[HealthData]:
+def health(session: Annotated[Session, Depends(get_db)]) -> Ok[HealthData]:
     """Prove the process is up and the database is reachable.
 
     Uses SELECT 1 rather than querying a table, because SP1 deliberately
@@ -955,7 +965,7 @@ Create `api/alembic/versions/0001_baseline.py`:
 """Baseline.
 
 Deliberately empty. Its purpose is to prove that Alembic is wired, runs
-against Neon, and executes in Fly's release step — without inventing a table
+against Neon, and executes in Fly's release step, without inventing a table
 that exists only to be dropped. SP2 stacks the first real schema on top by
 setting down_revision = "0001".
 
@@ -1053,7 +1063,7 @@ Create `api/Dockerfile`:
 ```dockerfile
 FROM python:3.12-slim AS builder
 
-COPY --from=ghcr.io/astral-sh/uv:0.5 /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.12 /uv /usr/local/bin/uv
 
 WORKDIR /app
 ENV UV_COMPILE_BYTECODE=1 \
@@ -1311,6 +1321,7 @@ Output is sorted and fixed-indent so generated types stay diff-stable."
 - Create: `web/index.html`
 - Create: `web/src/main.tsx`
 - Create: `web/src/index.css`
+- Create: `web/src/vite-env.d.ts`
 - Create: `web/src/routes/router.tsx`
 - Create: `web/src/test/setup.ts`
 - Create: `web/.env.example`
@@ -1367,7 +1378,7 @@ Create `web/package.json`:
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.19.0",
     "vite": "^6.0.0",
-    "vitest": "^2.1.0"
+    "vitest": "^3.0.0"
   }
 }
 ```
@@ -1381,11 +1392,26 @@ Expected: `web/package-lock.json` and `web/node_modules/` are created.
 
 - [ ] **Step 3: Create the TypeScript configuration**
 
+Three files, matching the layout `tsc -b` expects: an aggregator that owns no
+files, plus one project per compilation target. A single combined
+`tsconfig.json` does not build under `tsc -b`, because the root of a build
+graph cannot both reference projects and compile sources.
+
 Create `web/tsconfig.json`:
 
 ```json
 {
+  "files": [],
+  "references": [{ "path": "./tsconfig.app.json" }, { "path": "./tsconfig.node.json" }]
+}
+```
+
+Create `web/tsconfig.app.json`:
+
+```json
+{
   "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
     "target": "ES2022",
     "useDefineForClassFields": true,
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
@@ -1405,8 +1431,7 @@ Create `web/tsconfig.json`:
     "noUncheckedIndexedAccess": true,
     "types": ["vitest/globals", "@testing-library/jest-dom"]
   },
-  "include": ["src"],
-  "references": [{ "path": "./tsconfig.node.json" }]
+  "include": ["src"]
 }
 ```
 
@@ -1506,6 +1531,13 @@ Create `web/src/index.css`:
 
 ```css
 @import "tailwindcss";
+```
+
+Create `web/src/vite-env.d.ts`. Without it `import.meta.env` has no type and
+`tsc -b` fails in strict mode as soon as Task 8 reads `VITE_API_URL`:
+
+```ts
+/// <reference types="vite/client" />
 ```
 
 Create `web/.env.example`:
@@ -1851,8 +1883,29 @@ type Envelope<T> =
 
 const BASE_URL: string = import.meta.env.VITE_API_URL ?? "";
 
+function isErrorBody(value: unknown): value is { code: string; message: string } {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const candidate = value as { code?: unknown; message?: unknown };
+  return typeof candidate.code === "string" && typeof candidate.message === "string";
+}
+
+// Validates each arm rather than trusting `ok` alone. A body of {ok: false}
+// with no error would otherwise reach body.error.code and throw a raw
+// TypeError, which is exactly the contract this module exists to prevent.
 function isEnvelope<T>(body: unknown): body is Envelope<T> {
-  return typeof body === "object" && body !== null && typeof (body as Envelope<T>).ok === "boolean";
+  if (typeof body !== "object" || body === null) {
+    return false;
+  }
+  const candidate = body as { ok?: unknown; data?: unknown; error?: unknown };
+  if (candidate.ok === true) {
+    return "data" in candidate;
+  }
+  if (candidate.ok === false) {
+    return isErrorBody(candidate.error);
+  }
+  return false;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -1905,7 +1958,7 @@ check would silently pass.
 git add web/src/api/generated.ts
 printf '\n// deliberate drift\n' >> web/src/api/generated.ts
 git diff --exit-code -- web/src/api/generated.ts \
-  && echo "NO DRIFT DETECTED — BUG" \
+  && echo "NO DRIFT DETECTED, BUG" \
   || echo "drift detected as expected"
 make types
 git diff --exit-code -- web/src/api/generated.ts && echo "clean after regeneration"
@@ -1936,6 +1989,7 @@ throwing ApiError, so no ok checks reach components. (ADR 003 A1)"
 **Files:**
 - Create: `web/src/features/health/useHealth.ts`
 - Create: `web/src/features/health/HealthPage.tsx`
+- Create: `web/src/routes/NotFound.tsx`
 - Create: `web/src/test/render.tsx`
 - Test: `web/src/features/health/HealthPage.test.tsx`
 - Modify: `web/src/routes/router.tsx`
@@ -2091,20 +2145,29 @@ Expected: 4 passed
 
 - [ ] **Step 7: Mount the page on the index route**
 
-In `web/src/routes/router.tsx`, delete the local `Home` component and import the page instead. The file becomes:
+Task 7 left `router.tsx` exporting both components and non-component values,
+which trips `react-refresh/only-export-components`. Resolve it here by moving
+the last component out, so `router.tsx` holds routing configuration only.
+
+Create `web/src/routes/NotFound.tsx`:
 
 ```tsx
-import { createBrowserRouter, type RouteObject } from "react-router";
-
-import { HealthPage } from "../features/health/HealthPage";
-
-function NotFound() {
+export function NotFound() {
   return (
     <main className="mx-auto max-w-2xl p-8">
       <p>Page not found.</p>
     </main>
   );
 }
+```
+
+Then replace `web/src/routes/router.tsx` entirely:
+
+```tsx
+import { createBrowserRouter, type RouteObject } from "react-router";
+
+import { HealthPage } from "../features/health/HealthPage";
+import { NotFound } from "./NotFound";
 
 /** Exported separately so tests can build a memory router over them. */
 export const routes: RouteObject[] = [
@@ -2114,6 +2177,8 @@ export const routes: RouteObject[] = [
 
 export const router = createBrowserRouter(routes);
 ```
+
+`npm run lint` must now be warning-free, not merely exit zero.
 
 - [ ] **Step 8: Update the router test for the new index route**
 
@@ -2187,7 +2252,7 @@ createRoot(rootElement).render(
 - [ ] **Step 10: Run the whole frontend suite**
 
 Run: `cd web && npm test`
-Expected: 12 passed
+Expected: 15 passed (2 router, 9 client, 4 health)
 
 - [ ] **Step 11: Run lint, typecheck, and the full suite**
 
@@ -2220,21 +2285,28 @@ typed client, Query hook, rendered assertion."
 
 In `Makefile`, add `dev` and `install` to `.PHONY` and append:
 
+Also add `SHELL := /bin/bash` near the top of the file, above `.DEFAULT_GOAL`.
+`wait -n` below is a bash builtin, and make otherwise runs recipes under
+`/bin/sh`, which on many systems is dash and rejects it.
+
 ```make
 install: ## Install backend and frontend dependencies
 	cd api && uv sync
 	cd web && npm install
 
 dev: db-up migrate ## Run Postgres, the API with reload, and the Vite dev server
-	@echo "API  → http://localhost:8000"
-	@echo "Web  → http://localhost:5173"
+	@echo "API  -> http://localhost:8000"
+	@echo "Web  -> http://localhost:5173"
 	@trap 'kill 0' EXIT; \
 	(cd api && uv run uvicorn app.main:app --reload --port 8000) & \
 	(cd web && npm run dev) & \
-	wait
+	wait -n
 ```
 
-`trap 'kill 0' EXIT` means one Ctrl-C stops both processes rather than orphaning the API.
+`trap 'kill 0' EXIT` means one Ctrl-C stops both processes rather than
+orphaning the API. `wait -n` returns as soon as the first job exits, so if one
+server dies on its own the trap still fires and stops the other. A bare `wait`
+would block until every job finished, leaving the survivor running.
 
 - [ ] **Step 2: Verify the clean-checkout path**
 
@@ -2262,9 +2334,15 @@ Create `README.md`:
 A self-hosted secret manager: encrypted key/value storage with a web UI and a
 programmatic API for CI pipelines.
 
-> **Status:** SP1 — skeleton and pipeline. The deployment path is complete and
-> live; no secrets are stored yet. See `docs/superpowers/specs/` for the
-> sub-project plan and `docs/adr/` for the decision record.
+> **Status:** SP1, skeleton and pipeline. The application runs end to end
+> locally and the deployment configuration is written and verified, but
+> nothing is deployed yet. Provisioning the database, backend, frontend, and
+> domain is the remaining step. No secrets are stored: there is no schema, no
+> authentication, and no cryptography yet. See `docs/superpowers/specs/` for
+> the sub-project plan and `docs/adr/` for the decision record.
+
+Task 12 replaces this block with the live URLs once the deploy lands. Until
+then it must not claim a running system.
 
 ## Architecture
 
@@ -2289,7 +2367,7 @@ make types
 ```
 
 `api/scripts/dump_openapi.py` imports the FastAPI app object and writes the
-schema to stdout — no server, no port, no readiness polling. CI runs the same
+schema to stdout: no server, no port, no readiness polling. CI runs the same
 script and fails if the committed file differs.
 
 The effect: **changing a response shape in Python breaks `tsc` in the
@@ -2326,7 +2404,7 @@ docs/     ADRs and sub-project specs
 
 ## Testing
 
-The backend runs against a real Postgres via testcontainers, not SQLite —
+The backend runs against a real Postgres via testcontainers, not SQLite, because
 database behaviour differences matter in this project. The frontend mocks at
 the fetch layer with MSW rather than mocking hooks.
 
@@ -2382,9 +2460,17 @@ on:
   pull_request:
 
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Superseded pull request runs are worth cancelling. Pushes to main are not:
+  # cancelling one kills an in-flight deploy, and the job-level
+  # deploy-production group cannot protect a run the workflow already cancelled.
+  group: ci-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Path filtering happens inside each job, never with a paths: key on the
+# trigger or the job. A job skipped by a paths: filter reports no status at
+# all, so a required check never arrives and the pull request cannot merge.
+# Every job here checks out and evaluates its filter unconditionally, then
+# skips the work but still reports. See ADR 0001 A1.
 jobs:
   api:
     runs-on: ubuntu-latest
@@ -2588,30 +2674,27 @@ gh pr checks --watch
 
 Expected: all three checks pass.
 
-- [ ] **Step 6: Merge and configure branch protection**
+- [ ] **Step 6: Restore the branch to a green state**
 
-```bash
-gh pr merge --squash --delete-branch
-```
+Undo the two deliberate breakages from Steps 3 and 4 if any remain, and confirm
+the pull request is mergeable with all three checks passing.
 
-Then in GitHub → Settings → Branches → add a rule for `main`:
+**Do not merge here, and do not enable branch protection yet.** Both are
+deferred until after the final whole-branch review, for two reasons. Merging
+now would land CI on `main` ahead of the rest of SP1, leaving the trunk in a
+state no review has covered. And enabling required status checks before the
+first green merge exists can block that merge on checks GitHub has not yet
+recorded a passing run for.
+
+- [ ] **Step 7: Record what branch protection will require**
+
+The settings to apply after SP1 merges, on `main`:
 - Require a pull request before merging.
-- Require status checks to pass: **`api`**, **`web`**, **`types-drift`**. Do not add `deploy`.
+- Require status checks to pass: **`api`**, **`web`**, **`types-drift`**. Do not
+  add `deploy`; it runs only after those three and gating on it would deadlock.
 
-- [ ] **Step 7: Verify branch protection rejects a direct push**
-
-```bash
-git checkout main && git pull
-printf '\n' >> README.md
-git commit -am "docs: verify branch protection"
-git push
-```
-
-Expected: the push is **rejected**. Then undo the local commit:
-
-```bash
-git reset --hard origin/main
-```
+Applying them is a persistent change to repository configuration and belongs to
+whoever owns the repository, not to the implementation run.
 
 ---
 

@@ -1,0 +1,197 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  # Superseded pull request runs are worth cancelling. Pushes to main are not:
+  # cancelling one kills an in-flight deploy, and the job-level
+  # deploy-production group cannot protect a run the workflow already cancelled.
+  group: ci-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Path filtering happens inside each job, never with a paths: key on the
+# trigger or the job. A job skipped by a paths: filter reports no status at
+# all, so a required check never arrives and the pull request cannot merge.
+# Every job here checks out and evaluates its filter unconditionally, then
+# skips the work but still reports. See ADR 0001 A1.
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api:
+              - 'api/**'
+              - 'Makefile'
+              - '.github/workflows/ci.yml'
+
+      - name: Install uv
+        if: steps.filter.outputs.api == 'true'
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        if: steps.filter.outputs.api == 'true'
+        working-directory: api
+        run: uv sync --frozen
+
+      - name: Ruff check
+        if: steps.filter.outputs.api == 'true'
+        working-directory: api
+        run: uv run ruff check .
+
+      - name: Ruff format check
+        if: steps.filter.outputs.api == 'true'
+        working-directory: api
+        run: uv run ruff format --check .
+
+      - name: Mypy
+        if: steps.filter.outputs.api == 'true'
+        working-directory: api
+        run: uv run mypy app scripts alembic tests
+
+      - name: Pytest
+        # testcontainers needs a Docker daemon; ubuntu-latest runners have one.
+        if: steps.filter.outputs.api == 'true'
+        working-directory: api
+        run: uv run pytest -v
+
+      - name: No API changes
+        if: steps.filter.outputs.api != 'true'
+        run: echo "No changes under api/; nothing to check."
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            web:
+              - 'web/**'
+              - 'Makefile'
+              - '.github/workflows/ci.yml'
+
+      - name: Setup Node
+        if: steps.filter.outputs.web == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        if: steps.filter.outputs.web == 'true'
+        working-directory: web
+        run: npm ci
+
+      - name: ESLint
+        if: steps.filter.outputs.web == 'true'
+        working-directory: web
+        run: npm run lint
+
+      - name: Typecheck
+        if: steps.filter.outputs.web == 'true'
+        working-directory: web
+        run: npm run typecheck
+
+      - name: Vitest
+        if: steps.filter.outputs.web == 'true'
+        working-directory: web
+        run: npm test
+
+      - name: Build
+        if: steps.filter.outputs.web == 'true'
+        working-directory: web
+        run: npm run build
+
+      - name: No web changes
+        if: steps.filter.outputs.web != 'true'
+        run: echo "No changes under web/; nothing to check."
+
+  types-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: api
+        run: uv sync --frozen
+
+      - name: Install frontend dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Regenerate types
+        run: make types
+
+      - name: Fail if the committed types are stale
+        run: |
+          if ! git diff --exit-code -- web/src/api/generated.ts; then
+            echo "::error::web/src/api/generated.ts is stale. Run 'make types' and commit the result."
+            exit 1
+          fi
+
+  deploy:
+    needs: [api, web, types-drift]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    # Read at the job level because the secrets context is not available in a
+    # job-level if, and the deploy guard below has to read it from a step if.
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api:
+              - 'api/**'
+
+      # No GitHub Release exists for the 1.6 tag (the latest formal release
+      # is 1.5, from 2024); this is the commit 1.6 points to upstream, and
+      # also what @master currently resolves to.
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # 1.6
+        if: steps.filter.outputs.api == 'true' && env.FLY_API_TOKEN != ''
+
+      # The token is unset until the Fly app is provisioned, which makes the
+      # whole job a no-op rather than a deploy that fails by design on every
+      # push to main.
+      - name: Deploy to Fly
+        if: steps.filter.outputs.api == 'true' && env.FLY_API_TOKEN != ''
+        working-directory: api
+        run: flyctl deploy --remote-only
+
+      # The deploy runs alembic upgrade head against production, so a
+      # docs-only push must not reach it. The job still reports, per ADR 001 A1.
+      - name: Nothing to deploy
+        if: steps.filter.outputs.api != 'true' || env.FLY_API_TOKEN == ''
+        run: |
+          echo "api changed: ${{ steps.filter.outputs.api }}"
+          echo "FLY_API_TOKEN set: ${{ env.FLY_API_TOKEN != '' }}"
+          echo "Skipping deploy."
