@@ -57,6 +57,19 @@ def test_google_settings_read_from_environment(monkeypatch: pytest.MonkeyPatch) 
     assert settings.app_url == "https://app.example.com"
 
 
+def test_app_url_trailing_slash_is_stripped(monkeypatch: pytest.MonkeyPatch) -> None:
+    # APP_URL="http://testserver/" must not become "http://testserver//login"
+    # once a redirect target appends "/login": "//login" is a real path, not
+    # protocol-relative, and no router matches it.
+    monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://u:p@localhost:5433/db")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "client-id")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "client-secret")
+    monkeypatch.setenv("GOOGLE_REDIRECT_URI", "https://api.example.com/cb")
+    monkeypatch.setenv("APP_URL", "http://testserver/")
+
+    assert Settings().app_url == "http://testserver"
+
+
 def test_session_cookie_domain_defaults_to_empty() -> None:
     # _env_file=None disables the dotenv source so this exercises the class
     # default rather than whatever SESSION_COOKIE_DOMAIN happens to be in the

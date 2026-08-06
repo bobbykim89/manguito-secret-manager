@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Values that are definitely not production. Anything else, including a
@@ -31,6 +32,15 @@ class Settings(BaseSettings):
     google_redirect_uri: str
     app_url: str
     session_cookie_domain: str = ""
+
+    @field_validator("app_url")
+    @classmethod
+    def _strip_trailing_slash(cls, value: str) -> str:
+        # Every redirect target is built as f"{app_url}/path", so a trailing
+        # slash on app_url turns that into "//path": a real path, not
+        # protocol-relative, that no router will match. Normalize once here
+        # instead of at every call site.
+        return value.rstrip("/")
 
     @property
     def cors_origin_list(self) -> list[str]:
