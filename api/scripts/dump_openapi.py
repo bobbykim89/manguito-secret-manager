@@ -15,6 +15,10 @@ import sys
 os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://schema-dump/schema-dump")
 os.environ.setdefault("CORS_ORIGINS", "")
 os.environ.setdefault("ENVIRONMENT", "schema-dump")
+os.environ.setdefault("GOOGLE_CLIENT_ID", "schema-dump")
+os.environ.setdefault("GOOGLE_CLIENT_SECRET", "schema-dump")
+os.environ.setdefault("GOOGLE_REDIRECT_URI", "http://schema-dump/callback")
+os.environ.setdefault("APP_URL", "http://schema-dump")
 
 
 def main() -> None:

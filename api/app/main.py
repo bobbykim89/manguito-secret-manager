@@ -11,15 +11,18 @@ from app.envelope import (
     unhandled_exception_handler,
     validation_error_handler,
 )
-from app.routers import health
+from app.routers import auth, health
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
     application = FastAPI(title="manguito-secret-manager API", version="0.1.0")
 
-    # allow_credentials with a wildcard origin is rejected by browsers, and
-    # SP2's session cookie depends on credentialed requests working.
+    # allow_credentials=True does not make Starlette reject a wildcard
+    # origin; it makes Starlette reflect whatever Origin the request sent
+    # instead of literally sending "*". CORS_ORIGINS="*" would therefore
+    # grant every site on the internet a credentialed origin, which is why
+    # cors_origin_list refuses to produce one.
     application.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
@@ -35,6 +38,7 @@ def create_app() -> FastAPI:
     application.add_exception_handler(RequestValidationError, validation_error_handler)
     application.add_exception_handler(Exception, unhandled_exception_handler)
     application.include_router(health.router)
+    application.include_router(auth.router)
     return application
 
 
