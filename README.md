@@ -100,6 +100,20 @@ envelope.
 Registration is open: any Google account may sign in and gets an account on
 first login. Cross user isolation is therefore load bearing, not theoretical.
 
+### Environment variables
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `GOOGLE_CLIENT_ID` | yes | OAuth client id from the Google Cloud console |
+| `GOOGLE_CLIENT_SECRET` | yes | OAuth client secret. Never sent to the frontend |
+| `GOOGLE_REDIRECT_URI` | yes | Must exactly match one of the client's authorized redirect URIs |
+| `APP_URL` | yes | Where the frontend lives; the callback redirects here after login |
+| `SESSION_COOKIE_DOMAIN` | no | `.<domain>` in production, so the session cookie is shared between `app.<domain>` and `api.<domain>`. Empty locally |
+
+`Settings` is a Pydantic model built at import time, so a deployment missing
+any of the required variables fails during the release command, before
+migrations run, rather than surfacing as a 500 on first login.
+
 ## Repository layout
 
 ```

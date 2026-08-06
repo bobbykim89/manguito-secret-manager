@@ -238,9 +238,13 @@ same client. No tunnel and no self signed certificate.
 ## Logging
 
 The session token, the Google client secret, and the PKCE verifier are never
-logged, per CLAUDE.md invariant 1. The structured logging allowlist covers this,
-and the unhandled exception handler SP1 added already returns a fixed message
-rather than exception text.
+logged, per CLAUDE.md invariant 1. There is no structured logging allowlist in
+this codebase; what actually holds the invariant is that the auth path
+contains no logging calls that could carry any of the three, plus one
+`logger.exception` in the callback's broad exception handler, which records a
+traceback with no interpolated values and so cannot carry them either. The
+unhandled exception handler SP1 added still returns a fixed message rather
+than exception text.
 
 ## Testing
 

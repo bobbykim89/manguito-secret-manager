@@ -342,9 +342,29 @@ means a stolen database dump does not hand over live sessions.
 Session lifetime, the cookie names, and the error codes are now fixed by
 implementation: `msm_session` and `msm_oauth`, seven day absolute expiry, and
 four callback error codes: `CONSENT_DENIED`, `INVALID_STATE` for a missing
-cookie or a mismatch, `EXCHANGE_FAILED` for a missing code and for a rejection
-or an unreachable Google, and `EMAIL_NOT_VERIFIED`. Distinct conditions
-deliberately share a code, because a browser can do nothing different with the
-distinction.
+oauth cookie, a missing `state` query parameter, or a mismatch between them,
+`EXCHANGE_FAILED` for a missing code, a rejection or an unreachable Google, a
+missing `id_token`, a failed signature, or claims that fail validation, and
+`EMAIL_NOT_VERIFIED`. Distinct conditions deliberately share a code, because a
+browser can do nothing different with the distinction.
 The Google interaction sits behind a `GoogleOAuthClient` protocol so the test
 suite performs no network I/O.
+
+### A14. The Google boundary uses `joserfc`, not Authlib
+
+The SP2 spec named Authlib for the OAuth and JWT work. Implementation used
+`joserfc` instead.
+
+`authlib.jose` emits a deprecation warning on import and is removed outright
+in Authlib 2.0; Authlib's own documentation points integrators at `joserfc`
+for JOSE work going forward. `joserfc` still performs the part worth not
+hand writing, the JWT signature verification against Google's JWKS, so the
+security-relevant code is still a maintained library rather than a bespoke
+verifier.
+
+The consequence: the authorization code POST to Google's token endpoint and
+the JWKS response cache in `GoogleClient` are both hand written, since
+`joserfc` is a JOSE library, not an OAuth client. Neither is complex enough on
+its own to justify Authlib's larger surface just to avoid writing them.
+
+This supersedes the SP2 spec's Authlib decision.
