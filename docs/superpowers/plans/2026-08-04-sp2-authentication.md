@@ -79,28 +79,54 @@ def test_google_settings_read_from_environment(monkeypatch: pytest.MonkeyPatch) 
     assert settings.app_url == "https://app.example.com"
 
 
-def test_session_cookie_domain_defaults_to_empty(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://u:p@localhost:5433/db")
-    monkeypatch.setenv("GOOGLE_CLIENT_ID", "client-id")
-    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "client-secret")
-    monkeypatch.setenv("GOOGLE_REDIRECT_URI", "https://api.example.com/cb")
-    monkeypatch.setenv("APP_URL", "https://app.example.com")
+def test_session_cookie_domain_defaults_to_empty() -> None:
+    """Exercises the class default, not merely the absence of an env var.
 
-    assert Settings().session_cookie_domain == ""
+    Settings reads ../.env, and pydantic-settings resolves env, then dotenv,
+    then the field default. Asserting on a field this test never sets would
+    otherwise fail for anyone whose local .env happens to set it.
+    """
+    settings = Settings(
+        _env_file=None,
+        database_url="postgresql+psycopg://u:p@localhost:5433/db",
+        google_client_id="client-id",
+        google_client_secret="client-secret",
+        google_redirect_uri="https://api.example.com/cb",
+        app_url="https://app.example.com",
+    )
+
+    assert settings.session_cookie_domain == ""
 
 
-def test_is_production_follows_environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://u:p@localhost:5433/db")
-    monkeypatch.setenv("GOOGLE_CLIENT_ID", "client-id")
-    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "client-secret")
-    monkeypatch.setenv("GOOGLE_REDIRECT_URI", "https://api.example.com/cb")
-    monkeypatch.setenv("APP_URL", "https://app.example.com")
+@pytest.mark.parametrize(
+    ("environment", "expected"),
+    [
+        ("production", True),
+        ("Production", True),
+        ("staging", True),
+        ("prod", True),
+        ("local", False),
+        ("test", False),
+        ("schema-dump", False),
+    ],
+)
+def test_is_production_fails_closed(environment: str, expected: bool) -> None:
+    """Anything unrecognised counts as production.
 
-    monkeypatch.setenv("ENVIRONMENT", "production")
-    assert Settings().is_production is True
+    A wrong guess costs a broken local login you notice at once, rather than a
+    session cookie shipped without Secure in production, which nobody notices.
+    """
+    settings = Settings(
+        _env_file=None,
+        database_url="postgresql+psycopg://u:p@localhost:5433/db",
+        environment=environment,
+        google_client_id="client-id",
+        google_client_secret="client-secret",
+        google_redirect_uri="https://api.example.com/cb",
+        app_url="https://app.example.com",
+    )
 
-    monkeypatch.setenv("ENVIRONMENT", "local")
-    assert Settings().is_production is False
+    assert settings.is_production is expected
 ```
 
 Add `import pytest` to the file's imports if it is not already there.
@@ -123,8 +149,22 @@ In `api/app/config.py`, add to the `Settings` class after `environment`:
 
     @property
     def is_production(self) -> bool:
-        return self.environment == "production"
+        return self.environment.strip().lower() not in _NON_PRODUCTION
 ```
+
+with this module-level constant above the class:
+
+```python
+# Values that are definitely not production. Anything else, including a typo
+# or a new environment name, is treated as production, because a wrong guess
+# here costs a broken local login you notice immediately rather than a missing
+# Secure flag in production that nobody notices.
+_NON_PRODUCTION = frozenset({"local", "test", "schema-dump"})
+```
+
+Do not type `environment` as a `Literal`. `conftest.py` sets `ENVIRONMENT=test`
+and `dump_openapi.py` sets `ENVIRONMENT=schema-dump`; a Literal would reject
+both and break pytest collection and the `types-drift` check.
 
 Update the class docstring's second paragraph to read:
 
