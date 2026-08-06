@@ -817,6 +817,13 @@ describe("messageForErrorCode", () => {
     expect(messageForErrorCode("SOMETHING_ELSE")).toBe(FALLBACK_ERROR_MESSAGE);
   });
 
+  it.each(["__proto__", "constructor", "toString", "hasOwnProperty", "valueOf"])(
+    "falls back for the prototype key %s",
+    (code) => {
+      expect(messageForErrorCode(code)).toBe(FALLBACK_ERROR_MESSAGE);
+    },
+  );
+
   it("never returns attacker supplied text", () => {
     const injected = "Your account is locked. Call 555-0100.";
 
@@ -846,13 +853,15 @@ Create `web/src/features/auth/errorMessages.ts`:
  *
  * These are exactly the four codes api/app/routers/auth.py can emit.
  */
-const MESSAGES: Record<string, string> = {
-  CONSENT_DENIED: "Sign in was cancelled. You can try again whenever you're ready.",
-  INVALID_STATE: "That sign in attempt expired. Please start again.",
-  EXCHANGE_FAILED: "We could not complete sign in with Google. Please try again.",
-  EMAIL_NOT_VERIFIED:
+const MESSAGES = new Map<string, string>([
+  ["CONSENT_DENIED", "Sign in was cancelled. You can try again whenever you're ready."],
+  ["INVALID_STATE", "That sign in attempt expired. Please start again."],
+  ["EXCHANGE_FAILED", "We could not complete sign in with Google. Please try again."],
+  [
+    "EMAIL_NOT_VERIFIED",
     "Your Google account's email address is not verified. Verify it with Google, then try again.",
-};
+  ],
+]);
 
 export const FALLBACK_ERROR_MESSAGE = "Sign in did not complete. Please try again.";
 
@@ -860,7 +869,12 @@ export function messageForErrorCode(code: string | null): string | null {
   if (code === null) {
     return null;
   }
-  return MESSAGES[code] ?? FALLBACK_ERROR_MESSAGE;
+  // A Map rather than an object literal: indexing an object falls through to
+  // Object.prototype, so ?error=__proto__ returns an object that React throws
+  // on, crashing the page since there is no error boundary, and
+  // ?error=constructor returns a function that renders as an empty alert.
+  // Both are reachable from a URL an attacker controls.
+  return MESSAGES.get(code) ?? FALLBACK_ERROR_MESSAGE;
 }
 ```
 
