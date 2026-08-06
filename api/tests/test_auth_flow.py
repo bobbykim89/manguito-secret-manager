@@ -1,6 +1,8 @@
+import dataclasses
 from collections.abc import Iterator
 from typing import Any
 from urllib.parse import parse_qs, urlparse
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -76,6 +78,8 @@ def test_start_uses_a_fresh_state_each_time(
 def test_callback_creates_a_user_and_a_session(
     client: TestClient, fake_google: FakeGoogleClient, db_session: Session
 ) -> None:
+    identity = dataclasses.replace(VERIFIED, sub=f"google-sub-{uuid4()}")
+    fake_google.identity = identity
     state, _ = start_flow(client)
 
     response = client.get(
@@ -86,8 +90,8 @@ def test_callback_creates_a_user_and_a_session(
     assert "error=" not in response.headers["location"]
     assert SESSION_COOKIE in response.cookies
 
-    user = db_session.execute(select(User).where(User.google_sub == VERIFIED.sub)).scalar_one()
-    assert user.email == VERIFIED.email
+    user = db_session.execute(select(User).where(User.google_sub == identity.sub)).scalar_one()
+    assert user.email == identity.email
     sessions = (
         db_session.execute(select(UserSession).where(UserSession.user_id == user.id))
         .scalars()
@@ -95,20 +99,26 @@ def test_callback_creates_a_user_and_a_session(
     )
     assert len(sessions) == 1
 
+    me = client.get("/v1/auth/me")
+    assert me.status_code == 200
+    assert me.json()["data"]["email"] == identity.email
+
 
 def test_second_login_reuses_the_user_and_refreshes_a_changed_email(
     client: TestClient, fake_google: FakeGoogleClient, db_session: Session
 ) -> None:
+    sub = f"google-sub-{uuid4()}"
+    fake_google.identity = dataclasses.replace(VERIFIED, sub=sub)
     state, _ = start_flow(client)
     client.get(f"/v1/auth/google/callback?code=a&state={state}", follow_redirects=False)
 
     fake_google.identity = GoogleIdentity(
-        sub=VERIFIED.sub, email="renamed@example.com", email_verified=True, name="Renamed"
+        sub=sub, email="renamed@example.com", email_verified=True, name="Renamed"
     )
     state, _ = start_flow(client)
     client.get(f"/v1/auth/google/callback?code=b&state={state}", follow_redirects=False)
 
-    users = db_session.execute(select(User).where(User.google_sub == VERIFIED.sub)).scalars().all()
+    users = db_session.execute(select(User).where(User.google_sub == sub)).scalars().all()
     assert len(users) == 1
     db_session.refresh(users[0])
     assert users[0].email == "renamed@example.com"
@@ -142,6 +152,28 @@ def test_mismatched_state_is_invalid_state(
     )
 
     assert error_code(response) == "INVALID_STATE"
+
+
+def test_non_ascii_state_is_invalid_state(
+    client: TestClient, fake_google: FakeGoogleClient
+) -> None:
+    start_flow(client)
+
+    response = client.get(
+        "/v1/auth/google/callback?code=abc&state=caf%C3%A9", follow_redirects=False
+    )
+
+    assert error_code(response) == "INVALID_STATE"
+
+
+def test_missing_code_redirects_with_its_code(
+    client: TestClient, fake_google: FakeGoogleClient
+) -> None:
+    state, _ = start_flow(client)
+
+    response = client.get(f"/v1/auth/google/callback?state={state}", follow_redirects=False)
+
+    assert error_code(response) == "EXCHANGE_FAILED"
 
 
 def test_exchange_failure_redirects_with_its_code(
