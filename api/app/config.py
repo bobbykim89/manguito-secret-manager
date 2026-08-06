@@ -34,7 +34,19 @@ class Settings(BaseSettings):
 
     @property
     def cors_origin_list(self) -> list[str]:
-        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+        origins = [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+        if "*" in origins:
+            # CORSMiddleware runs with allow_credentials=True, and Starlette's
+            # response to a wildcard origin under credentials is not to send
+            # "*": it reflects whatever Origin the request sent. A wildcard
+            # here would silently make every origin on the internet a
+            # credentialed one.
+            raise ValueError(
+                "CORS_ORIGINS cannot contain '*': with allow_credentials=True, "
+                "Starlette reflects any Origin instead of sending a literal "
+                "wildcard, which would grant every site credentialed access"
+            )
+        return origins
 
     @property
     def is_production(self) -> bool:

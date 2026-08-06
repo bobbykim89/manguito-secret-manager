@@ -31,6 +31,17 @@ def test_cors_origin_list_is_empty_when_unset(monkeypatch: pytest.MonkeyPatch) -
     assert Settings().cors_origin_list == []
 
 
+def test_cors_origin_list_rejects_a_wildcard(monkeypatch: pytest.MonkeyPatch) -> None:
+    # allow_credentials=True means Starlette reflects the requesting Origin
+    # rather than sending a literal "*", so a wildcard here would silently
+    # grant every site on the internet a credentialed origin.
+    monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://u:p@localhost:5433/db")
+    monkeypatch.setenv("CORS_ORIGINS", "https://a.example.com,*")
+
+    with pytest.raises(ValueError, match="CORS_ORIGINS"):
+        _ = Settings().cors_origin_list
+
+
 def test_google_settings_read_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://u:p@localhost:5433/db")
     monkeypatch.setenv("GOOGLE_CLIENT_ID", "client-id")
