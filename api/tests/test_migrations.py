@@ -23,21 +23,24 @@ def test_baseline_migration_applies_and_reverses(postgres_url: str) -> None:
     command.upgrade(config, "head")
     with engine.connect() as connection:
         version = connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-    assert version == "0001"
+    assert version == "0002"
 
     command.downgrade(config, "base")
     with engine.connect() as connection:
         assert connection.execute(text("SELECT count(*) FROM alembic_version")).scalar_one() == 0
 
+    command.upgrade(config, "head")
 
-def test_baseline_creates_no_domain_tables(postgres_url: str) -> None:
-    """SP1 deliberately ships no schema. SP2 owns the first real tables."""
+
+def test_migrations_create_the_expected_tables(postgres_url: str) -> None:
+    """SP2 adds exactly two tables and no more."""
     config = alembic_config(postgres_url)
     engine = create_db_engine(postgres_url)
 
     command.upgrade(config, "head")
     try:
         tables = set(inspect(engine).get_table_names())
-        assert tables == {"alembic_version"}
+        assert tables == {"alembic_version", "users", "sessions"}
     finally:
         command.downgrade(config, "base")
+        command.upgrade(config, "head")

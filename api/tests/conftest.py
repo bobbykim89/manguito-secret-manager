@@ -1,8 +1,12 @@
 import os
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
+from sqlalchemy import Engine
 from testcontainers.community.postgres import PostgresContainer
+
+from app.db import create_db_engine
 
 # Both assignments below have to agree. The CORS allowlist is the only
 # security-relevant setting SP1 can test, and if the collection-time default
@@ -47,3 +51,27 @@ def _reset_caches(postgres_url: str) -> Iterator[None]:
     yield
     get_settings.cache_clear()
     get_engine.cache_clear()
+
+
+@pytest.fixture(scope="session")
+def migrated_engine(postgres_url: str) -> Iterator[Engine]:
+    """An engine against a database with every migration applied.
+
+    Session scoped because running Alembic per test would dominate the
+    suite's runtime. Tests that write must clean up after themselves or use
+    values unique to the test.
+    """
+    from alembic.config import Config
+
+    from alembic import command
+
+    api_root = Path(__file__).resolve().parent.parent
+    config = Config(str(api_root / "alembic.ini"))
+    config.set_main_option("script_location", str(api_root / "alembic"))
+    config.set_main_option("sqlalchemy.url", postgres_url)
+    command.upgrade(config, "head")
+
+    engine = create_db_engine(postgres_url)
+    yield engine
+    engine.dispose()
+    command.downgrade(config, "base")
