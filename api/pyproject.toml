@@ -12,6 +12,7 @@ dependencies = [
     "pydantic-settings>=2.6",
     "authlib>=1.7.2",
     "httpx>=0.28.1",
+    "joserfc>=1.7.4",
 ]
 
 [dependency-groups]
