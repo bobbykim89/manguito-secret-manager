@@ -2422,8 +2422,11 @@ Append a short amendment:
 
 Session lifetime, the cookie names, and the error codes are now fixed by
 implementation: `msm_session` and `msm_oauth`, seven day absolute expiry, and
-four callback error codes (`CONSENT_DENIED`, `INVALID_STATE`,
-`EXCHANGE_FAILED`, `EMAIL_NOT_VERIFIED`) covering five failure conditions.
+four callback error codes: `CONSENT_DENIED`, `INVALID_STATE` for a missing
+cookie or a mismatch, `EXCHANGE_FAILED` for a missing code and for a rejection
+or an unreachable Google, and `EMAIL_NOT_VERIFIED`. Distinct conditions
+deliberately share a code, because a browser can do nothing different with the
+distinction.
 The Google interaction sits behind a `GoogleOAuthClient` protocol so the test
 suite performs no network I/O.
 ```
@@ -2436,7 +2439,7 @@ Confirm each item from the spec against the suite:
 |---|---|---|
 | 1 | First login creates one `users` row and one `sessions` row and sets `msm_session` | `test_callback_creates_a_user_and_a_session` |
 | 2 | Second login creates no new user and updates a changed email | `test_second_login_reuses_the_user_and_refreshes_a_changed_email` |
-| 3 | All five failure conditions redirect with one of four codes and clear `msm_oauth` | `test_auth_flow.py`, five failure tests plus the two clearing tests |
+| 3 | Every callback failure condition redirects with one of the four codes and clears `msm_oauth`. Do not assert a count: conditions share codes and counting sub-conditions is ambiguous | `test_auth_flow.py`, the failure tests plus the two clearing tests |
 | 4 | `/v1/auth/me` returns the user; missing, unknown, and expired all give an identical 401 | `test_auth_me.py` |
 | 5 | Logout deletes the row and is idempotent | `test_auth_logout.py` |
 | 6 | `Secure` set under production and not locally | `test_auth_cookies.py` |
