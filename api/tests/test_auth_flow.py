@@ -189,6 +189,24 @@ def test_exchange_failure_redirects_with_its_code(
     assert error_code(response) == "EXCHANGE_FAILED"
 
 
+def test_an_unexpected_exchange_error_redirects_with_exchange_failed_and_clears_the_cookie(
+    client: TestClient, fake_google: FakeGoogleClient
+) -> None:
+    # Reproduces the reviewer's finding: a client raising something other
+    # than GoogleAuthError (a malformed JSON body, a broken key set) must not
+    # escape as a 500 with the OAuth cookie still set.
+    state, _ = start_flow(client)
+    fake_google.error = ValueError("not the exception type this route expects")
+
+    response = client.get(
+        f"/v1/auth/google/callback?code=abc&state={state}", follow_redirects=False
+    )
+
+    assert error_code(response) == "EXCHANGE_FAILED"
+    cleared = response.headers.get_list("set-cookie")
+    assert any(OAUTH_COOKIE in header and "Max-Age=0" in header for header in cleared)
+
+
 def test_unverified_email_is_rejected(
     client: TestClient, fake_google: FakeGoogleClient, db_session: Session
 ) -> None:

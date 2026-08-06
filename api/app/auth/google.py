@@ -107,7 +107,13 @@ class GoogleClient:
             # Never include the body: it can echo the client secret back.
             raise GoogleAuthError(f"token endpoint returned {response.status_code}")
 
-        id_token = response.json().get("id_token")
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            # A 200 with a non-JSON body. Never include the body: it can
+            # echo the client secret back.
+            raise GoogleAuthError("token endpoint returned a non-JSON body") from exc
+        id_token = payload.get("id_token")
         if not id_token:
             raise GoogleAuthError("token response carried no id_token")
 
@@ -126,7 +132,12 @@ class GoogleClient:
                 keys = httpx.get(JWKS_ENDPOINT, timeout=10.0).json()
             except httpx.HTTPError as exc:
                 raise GoogleAuthError("jwks endpoint unreachable") from exc
-            self._jwks = KeySet.import_key_set(keys)
+            except ValueError as exc:
+                raise GoogleAuthError("jwks endpoint returned a non-JSON body") from exc
+            try:
+                self._jwks = KeySet.import_key_set(keys)
+            except Exception as exc:
+                raise GoogleAuthError("jwks endpoint returned a malformed key set") from exc
             self._jwks_fetched_at = now
         return self._jwks
 

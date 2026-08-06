@@ -1,3 +1,4 @@
+import logging
 import secrets
 import uuid
 from typing import Annotated
@@ -30,6 +31,8 @@ from app.config import Settings, get_settings
 from app.db import get_db
 from app.envelope import Err, Ok
 from app.models import User
+
+logger = logging.getLogger(__name__)
 
 # Endpoints a browser navigates to redirect on failure; endpoints JavaScript
 # calls return the ADR 002 envelope. /me and /logout are the second kind.
@@ -123,14 +126,30 @@ def google_callback(
         identity = google.exchange_code(code, stored[1])
     except GoogleAuthError:
         return fail("EXCHANGE_FAILED")
+    except Exception:
+        # The redirect contract is that every exit path clears the OAuth
+        # cookie. A bare except is normally wrong, but here it is the thing
+        # that makes that contract hold by construction rather than by
+        # enumerating the exception types the client happens to raise today.
+        logger.exception("unexpected error exchanging the authorization code")
+        return fail("EXCHANGE_FAILED")
 
     if not identity.email_verified:
         return fail("EMAIL_NOT_VERIFIED")
 
-    user = upsert_user(session, identity)
-    purge_expired_sessions(session, user)
-    token, _ = create_session(session, user)
-    session.commit()
+    try:
+        # Guarded end to end, not just exchange_code: a concurrent first
+        # login for the same google_sub can raise IntegrityError at flush,
+        # and that exception is just as capable of escaping this handler and
+        # leaving the OAuth cookie set as anything exchange_code raises.
+        user = upsert_user(session, identity)
+        purge_expired_sessions(session, user)
+        token, _ = create_session(session, user)
+        session.commit()
+    except Exception:
+        session.rollback()
+        logger.exception("unexpected error persisting the login")
+        return fail("EXCHANGE_FAILED")
 
     response = RedirectResponse(settings.app_url, status_code=307)
     set_session_cookie(response, token, settings)
