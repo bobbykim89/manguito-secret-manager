@@ -10,7 +10,9 @@ from sqlalchemy.orm import Session
 
 from app.auth.cookies import (
     OAUTH_COOKIE,
+    SESSION_COOKIE,
     clear_oauth_cookie,
+    clear_session_cookie,
     read_oauth_cookie,
     set_oauth_cookie,
     set_session_cookie,
@@ -23,7 +25,7 @@ from app.auth.google import (
     get_google_client,
     pkce_challenge,
 )
-from app.auth.sessions import create_session, purge_expired_sessions
+from app.auth.sessions import create_session, delete_session, purge_expired_sessions
 from app.config import Settings, get_settings
 from app.db import get_db
 from app.envelope import Err, Ok
@@ -134,3 +136,28 @@ def google_callback(
     set_session_cookie(response, token, settings)
     clear_oauth_cookie(response, settings)
     return response
+
+
+class LogoutData(BaseModel):
+    signed_out: bool
+
+
+@router.post("/logout", response_model=Ok[LogoutData])
+def logout(
+    request: Request,
+    response: Response,
+    settings: Annotated[Settings, Depends(get_settings)],
+    session: Annotated[Session, Depends(get_db)],
+) -> Ok[LogoutData]:
+    """Destroy the session.
+
+    Succeeds even when nothing matched. Reporting whether a session existed
+    would answer a question the caller has no business asking, and there is
+    nothing useful for a client to do differently either way.
+    """
+    token = request.cookies.get(SESSION_COOKIE)
+    if token:
+        delete_session(session, token)
+        session.commit()
+    clear_session_cookie(response, settings)
+    return Ok(data=LogoutData(signed_out=True))

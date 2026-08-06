@@ -4,6 +4,30 @@
  */
 
 export interface paths {
+    "/v1/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Logout
+         * @description Destroy the session.
+         *
+         *     Succeeds even when nothing matched. Reporting whether a session existed
+         *     would answer a question the caller has no business asking, and there is
+         *     nothing useful for a client to do differently either way.
+         */
+        post: operations["logout_v1_auth_logout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/auth/me": {
         parameters: {
             query?: never;
@@ -73,6 +97,11 @@ export interface components {
             /** Db */
             db: string;
         };
+        /** LogoutData */
+        LogoutData: {
+            /** Signed Out */
+            signed_out: boolean;
+        };
         /** MeData */
         MeData: {
             /** Email */
@@ -88,6 +117,16 @@ export interface components {
         /** Ok[HealthData] */
         Ok_HealthData_: {
             data: components["schemas"]["HealthData"];
+            /**
+             * Ok
+             * @default true
+             * @constant
+             */
+            ok: true;
+        };
+        /** Ok[LogoutData] */
+        Ok_LogoutData_: {
+            data: components["schemas"]["LogoutData"];
             /**
              * Ok
              * @default true
@@ -114,6 +153,26 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    logout_v1_auth_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ok_LogoutData_"];
+                };
+            };
+        };
+    };
     me_v1_auth_me_get: {
         parameters: {
             query?: never;
