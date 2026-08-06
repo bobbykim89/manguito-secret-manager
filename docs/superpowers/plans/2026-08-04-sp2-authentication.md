@@ -1360,6 +1360,7 @@ import base64
 import hashlib
 import time
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any, Protocol
 from urllib.parse import urlencode
 
@@ -1399,13 +1400,23 @@ class GoogleOAuthClient(Protocol):
     def exchange_code(self, code: str, verifier: str) -> GoogleIdentity: ...
 
 
+def _is_verified(claims: dict[str, Any]) -> bool:
+    """Identity comparison, not truthiness.
+
+    bool("false") is True, and this claim decides whether a stranger gets an
+    account on an open registration instance. Anything other than a genuine
+    JSON true counts as unverified.
+    """
+    return claims.get("email_verified") is True
+
+
 def pkce_challenge(verifier: str) -> str:
     """S256 challenge: unpadded base64url of the verifier's SHA-256."""
     digest = hashlib.sha256(verifier.encode()).digest()
     return base64.urlsafe_b64encode(digest).decode().rstrip("=")
 
 
-class AuthlibGoogleClient:
+class GoogleClient:
     """Real Google client.
 
     Kept behind GoogleOAuthClient so tests inject a fake and the suite never
@@ -1414,7 +1425,7 @@ class AuthlibGoogleClient:
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
-        self._jwks: Any | None = None
+        self._jwks: KeySet | None = None
         self._jwks_fetched_at = 0.0
 
     def authorization_url(self, state: str, code_challenge: str) -> str:
@@ -1462,7 +1473,7 @@ class AuthlibGoogleClient:
         return GoogleIdentity(
             sub=str(claims["sub"]),
             email=str(claims.get("email", "")),
-            email_verified=bool(claims.get("email_verified", False)),
+            email_verified=_is_verified(claims),
             name=claims.get("name"),
         )
 
@@ -1503,8 +1514,14 @@ class AuthlibGoogleClient:
         return dict(token.claims)
 
 
+@lru_cache(maxsize=1)
 def get_google_client() -> GoogleOAuthClient:
-    return AuthlibGoogleClient(get_settings())
+    # get_settings is itself lru_cache(maxsize=1), so the settings object is
+    # already process lifetime and caching the client changes nothing about
+    # that. Without this the JWKS cache resets on every dependency resolution,
+    # making every login fetch Google's keys again. Caching does not affect
+    # dependency_overrides, which replaces the callable by identity.
+    return GoogleClient(get_settings())
 ```
 
 - [ ] **Step 4: Run the tests to verify they pass**
