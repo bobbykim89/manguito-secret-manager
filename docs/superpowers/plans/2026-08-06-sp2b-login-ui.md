@@ -310,8 +310,11 @@ export const SESSION_QUERY_KEY = ["session"] as const;
  */
 export function createQueryClient(): QueryClient {
   // The handler needs the client it is attached to. It is assigned two
-  // statements below, and the callback cannot fire before a query runs.
-  let client: QueryClient | undefined;
+  // statements below, and the callback cannot fire before a query runs. The
+  // explicit `= undefined` rather than a bare declaration keeps eslint's
+  // prefer-const from proposing a rewrite that would reintroduce the circular
+  // reference this two-step init exists to avoid.
+  let client: QueryClient | undefined = undefined;
 
   const queryCache = new QueryCache({
     onError: (error, query) => {
