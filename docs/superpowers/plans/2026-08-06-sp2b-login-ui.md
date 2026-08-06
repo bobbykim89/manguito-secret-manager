@@ -1018,7 +1018,9 @@ export function LoginPage() {
 - [ ] **Step 7: Run the tests to verify they pass**
 
 Run: `cd web && pnpm test -- src/features/auth`
-Expected: 7 message tests and 9 page tests pass, alongside the earlier auth tests.
+Expected: both files pass. Do not chase a total: the page file uses it.each, so the
+number of reported cases is larger than the number of it blocks, and an expected
+count stated here would be wrong more often than the tests are.
 
 - [ ] **Step 8: Run lint and the full suite**
 
