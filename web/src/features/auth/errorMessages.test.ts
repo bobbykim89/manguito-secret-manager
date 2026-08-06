@@ -26,4 +26,11 @@ describe("messageForErrorCode", () => {
     expect(messageForErrorCode(injected)).toBe(FALLBACK_ERROR_MESSAGE);
     expect(messageForErrorCode(injected)).not.toContain("555");
   });
+
+  it.each(["__proto__", "constructor", "toString", "hasOwnProperty", "valueOf"])(
+    "falls back for the prototype key %s",
+    (code) => {
+      expect(messageForErrorCode(code)).toBe(FALLBACK_ERROR_MESSAGE);
+    },
+  );
 });

@@ -73,6 +73,14 @@ describe("LoginPage", () => {
     expect(alert).not.toHaveTextContent(/555/);
   });
 
+  it("renders the fallback rather than crashing on a prototype key", async () => {
+    unauthenticated();
+
+    renderLogin("?error=__proto__");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/did not complete/i);
+  });
+
   it("redirects an already authenticated visitor away from the login screen", async () => {
     server.use(
       http.get(ME, () =>
