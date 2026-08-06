@@ -2,6 +2,12 @@ from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Values that are definitely not production. Anything else, including a
+# typo or a new environment name, is treated as production, because a
+# wrong guess here costs a broken local login you notice immediately
+# rather than a missing Secure flag in production that nobody notices.
+_NON_PRODUCTION = frozenset({"local", "test", "schema-dump"})
+
 
 class Settings(BaseSettings):
     """Application configuration, read from the environment.
@@ -32,7 +38,7 @@ class Settings(BaseSettings):
 
     @property
     def is_production(self) -> bool:
-        return self.environment == "production"
+        return self.environment.strip().lower() not in _NON_PRODUCTION
 
 
 @lru_cache(maxsize=1)

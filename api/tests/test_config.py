@@ -46,14 +46,21 @@ def test_google_settings_read_from_environment(monkeypatch: pytest.MonkeyPatch) 
     assert settings.app_url == "https://app.example.com"
 
 
-def test_session_cookie_domain_defaults_to_empty(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://u:p@localhost:5433/db")
-    monkeypatch.setenv("GOOGLE_CLIENT_ID", "client-id")
-    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "client-secret")
-    monkeypatch.setenv("GOOGLE_REDIRECT_URI", "https://api.example.com/cb")
-    monkeypatch.setenv("APP_URL", "https://app.example.com")
+def test_session_cookie_domain_defaults_to_empty() -> None:
+    # _env_file=None disables the dotenv source so this exercises the class
+    # default rather than whatever SESSION_COOKIE_DOMAIN happens to be in the
+    # developer's local .env (pydantic-settings precedence is env > dotenv >
+    # field default, and .env is real once Task 4 starts touching cookies).
+    settings = Settings(
+        _env_file=None,
+        database_url="postgresql+psycopg://u:p@localhost:5433/db",
+        google_client_id="client-id",
+        google_client_secret="client-secret",
+        google_redirect_uri="https://api.example.com/cb",
+        app_url="https://app.example.com",
+    )
 
-    assert Settings().session_cookie_domain == ""
+    assert settings.session_cookie_domain == ""
 
 
 def test_is_production_follows_environment(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -68,3 +75,17 @@ def test_is_production_follows_environment(monkeypatch: pytest.MonkeyPatch) -> N
 
     monkeypatch.setenv("ENVIRONMENT", "local")
     assert Settings().is_production is False
+
+    monkeypatch.setenv("ENVIRONMENT", "test")
+    assert Settings().is_production is False
+
+    monkeypatch.setenv("ENVIRONMENT", "schema-dump")
+    assert Settings().is_production is False
+
+    # Fails closed: an unrecognised value, including a differently-cased
+    # known one, is treated as production rather than silently trusted.
+    monkeypatch.setenv("ENVIRONMENT", "Production")
+    assert Settings().is_production is True
+
+    monkeypatch.setenv("ENVIRONMENT", "staging")
+    assert Settings().is_production is True
