@@ -1263,6 +1263,22 @@ production values, so both are asserted directly on the Set-Cookie header."
   - `get_google_client() -> GoogleOAuthClient` FastAPI dependency
   - `pkce_challenge(verifier: str) -> str`
 
+- [ ] **Step 0: Declare joserfc explicitly**
+
+```bash
+cd api && uv add joserfc
+```
+
+`joserfc` is already installed as one of Authlib's own dependencies, so this
+adds no new package to the environment. Declaring it directly is still right:
+this module imports it, and depending on a transitive dependency means a future
+Authlib release could drop it and break the build with no signal.
+
+The reason this module uses `joserfc` rather than `authlib.jose`: importing
+`authlib.jose` emits `AuthlibDeprecationWarning`, which would put a warning in
+every test run, and the module is slated for removal in Authlib 2.0. `joserfc`
+is the replacement Authlib itself points at.
+
 - [ ] **Step 1: Write the failing test**
 
 Create `api/tests/test_auth_google.py`:
@@ -1348,8 +1364,10 @@ from typing import Any, Protocol
 from urllib.parse import urlencode
 
 import httpx
-from authlib.jose import JsonWebKey, JsonWebToken
-from authlib.jose.errors import JoseError
+from joserfc import jwt
+from joserfc.errors import JoseError
+from joserfc.jwk import KeySet
+from joserfc.jwt import JWTClaimsRegistry
 
 from app.config import Settings, get_settings
 
@@ -1448,31 +1466,41 @@ class AuthlibGoogleClient:
             name=claims.get("name"),
         )
 
-    def _key_set(self) -> Any:
+    def _key_set(self) -> KeySet:
         now = time.monotonic()
         if self._jwks is None or now - self._jwks_fetched_at > _JWKS_TTL_SECONDS:
             try:
                 keys = httpx.get(JWKS_ENDPOINT, timeout=10.0).json()
             except httpx.HTTPError as exc:
                 raise GoogleAuthError("jwks endpoint unreachable") from exc
-            self._jwks = JsonWebKey.import_key_set(keys)
+            self._jwks = KeySet.import_key_set(keys)
             self._jwks_fetched_at = now
         return self._jwks
 
     def _verify_id_token(self, id_token: str) -> dict[str, Any]:
-        try:
-            claims = JsonWebToken(["RS256"]).decode(id_token, self._key_set())
-            claims.validate()
-        except JoseError as exc:
-            raise GoogleAuthError("id_token failed verification") from exc
+        """Verify the signature, then the claims.
 
-        if claims.get("iss") not in VALID_ISSUERS:
-            raise GoogleAuthError("id_token issuer is not Google")
-        if claims.get("aud") != self._settings.google_client_id:
-            raise GoogleAuthError("id_token audience is not this client")
-        if not claims.get("sub"):
-            raise GoogleAuthError("id_token carried no subject")
-        return dict(claims)
+        Signature first: an unverified token's claims are attacker controlled,
+        so validating them before checking the signature would be validating
+        whatever the attacker wrote.
+        """
+        try:
+            token = jwt.decode(id_token, self._key_set(), algorithms=["RS256"])
+        except JoseError as exc:
+            raise GoogleAuthError("id_token failed signature verification") from exc
+
+        registry = JWTClaimsRegistry(
+            iss={"essential": True, "values": sorted(VALID_ISSUERS)},
+            aud={"essential": True, "value": self._settings.google_client_id},
+            exp={"essential": True},
+            sub={"essential": True},
+        )
+        try:
+            registry.validate(token.claims)
+        except JoseError as exc:
+            raise GoogleAuthError("id_token claims failed validation") from exc
+
+        return dict(token.claims)
 
 
 def get_google_client() -> GoogleOAuthClient:
