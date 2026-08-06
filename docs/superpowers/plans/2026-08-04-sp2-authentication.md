@@ -1558,7 +1558,7 @@ never included in an error, because it can echo the client secret back."
 
 **Interfaces:**
 - Consumes: `app.auth.sessions.lookup_session_user`, `app.auth.cookies.SESSION_COOKIE`, `app.db.get_db`, `app.envelope.ApiError`, `app.models.User`.
-- Produces: `app.auth.dependencies.current_user(request, session) -> User`; `app.routers.auth.router` (prefix `/v1/auth`); `MeData` Pydantic model with `id: uuid.UUID`, `email: str`, `name: str | None`. Adds fixtures `client` and `authenticated_client`.
+- Produces: `app.auth.dependencies.current_user(request, session) -> User`; `app.routers.auth.router` (prefix `/v1/auth`); `MeData` Pydantic model with `id: uuid.UUID`, `email: str`, `name: str | None`. Adds fixtures `client` and `db_session`.
 
 - [ ] **Step 1: Add test fixtures**
 
