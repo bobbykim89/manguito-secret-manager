@@ -996,7 +996,13 @@ from app.config import Settings
 
 
 def settings_for(environment: str, domain: str = "") -> Settings:
+    """Every field is passed explicitly, and the dotenv source is disabled.
+
+    Settings otherwise reads ../.env, so a developer with SESSION_COOKIE_DOMAIN
+    set locally would fail the "no Domain locally" assertion while CI passed.
+    """
     return Settings(
+        _env_file=None,
         database_url="postgresql+psycopg://u:p@localhost:5433/db",
         cors_origins="",
         environment=environment,
