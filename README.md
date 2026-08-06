@@ -71,17 +71,10 @@ Then open <http://localhost:5173>.
 Google OAuth with server side sessions. The backend performs the code
 exchange; the frontend never sees a Google token.
 
-To run login locally you need a Google OAuth client:
-
-1. In the Google Cloud console, create an OAuth 2.0 Client ID of type **Web
-   application**.
-2. Add two authorized redirect URIs to the same client:
-   - `http://localhost:8000/v1/auth/google/callback`
-   - `https://api.<domain>/v1/auth/google/callback`
-
-   Google permits plain `http` for `localhost` specifically, so no tunnel or
-   self signed certificate is needed.
-3. Copy the client id and secret into `.env`.
+Running login locally needs a Google OAuth client, which is free to create.
+[docs/google-oauth-setup.md](docs/google-oauth-setup.md) walks through it end to
+end, including the consent screen setting that silently rejects every account
+but your own, and what each callback error code means when something fails.
 
 The redirect URI is configuration rather than something derived from the
 request `Host` header. Deriving it is how open redirect bugs start.
