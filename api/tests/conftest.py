@@ -3,7 +3,9 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import Engine
+from sqlalchemy.orm import Session as SQLSession
 from testcontainers.community.postgres import PostgresContainer
 
 from app.db import create_db_engine
@@ -75,3 +77,18 @@ def migrated_engine(postgres_url: str) -> Iterator[Engine]:
     yield engine
     engine.dispose()
     command.downgrade(config, "base")
+
+
+@pytest.fixture
+def client(migrated_engine: Engine) -> Iterator[TestClient]:
+    from app.main import app
+
+    with TestClient(app) as test_client:
+        yield test_client
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def db_session(migrated_engine: Engine) -> Iterator[SQLSession]:
+    with SQLSession(migrated_engine) as session:
+        yield session
