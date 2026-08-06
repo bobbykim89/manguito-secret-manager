@@ -120,7 +120,7 @@ class GoogleClient:
         claims = self._verify_id_token(id_token)
         return GoogleIdentity(
             sub=str(claims["sub"]),
-            email=str(claims.get("email", "")),
+            email=str(claims["email"]),
             email_verified=_is_verified(claims),
             name=claims.get("name"),
         )
@@ -163,6 +163,13 @@ class GoogleClient:
             registry.validate(token.claims)
         except JoseError as exc:
             raise GoogleAuthError("id_token claims failed validation") from exc
+
+        # email is not in JWTClaimsRegistry (Google does not treat it as
+        # essential), but this app does: an empty email would create an
+        # account nothing can address, and open registration means we cannot
+        # rely on Google never sending this.
+        if not token.claims.get("email"):
+            raise GoogleAuthError("id_token carried no email claim")
 
         return dict(token.claims)
 
