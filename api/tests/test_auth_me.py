@@ -71,10 +71,14 @@ def test_me_with_an_expired_session_is_unauthenticated(
 def test_a_token_never_resolves_to_a_different_user(
     client: TestClient, db_session: Session
 ) -> None:
-    _, mine = seed_user_and_token(db_session, "iso-mine")
+    mine, mine_token = seed_user_and_token(db_session, "iso-mine")
     other, _ = seed_user_and_token(db_session, "iso-other")
-    client.cookies.set(SESSION_COOKIE, mine)
+    client.cookies.set(SESSION_COOKIE, mine_token)
 
     response = client.get("/v1/auth/me")
 
+    # Not just "not other": a response that resolved to some third user
+    # entirely would satisfy inequality alone. It must be mine specifically.
+    assert response.status_code == 200
+    assert response.json()["data"]["email"] == mine.email
     assert response.json()["data"]["email"] != other.email
