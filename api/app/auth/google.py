@@ -2,6 +2,7 @@ import base64
 import hashlib
 import time
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any, Protocol
 from urllib.parse import urlencode
 
@@ -47,7 +48,17 @@ def pkce_challenge(verifier: str) -> str:
     return base64.urlsafe_b64encode(digest).decode().rstrip("=")
 
 
-class AuthlibGoogleClient:
+def _is_verified(claims: dict[str, Any]) -> bool:
+    """True only for a genuine JSON boolean true.
+
+    This claim is not in the JWTClaimsRegistry, so nothing else checks its
+    type, and it gates account creation. A stray truthy value like the string
+    "false" must read as unverified, not verified.
+    """
+    return claims.get("email_verified") is True
+
+
+class GoogleClient:
     """Real Google client.
 
     Kept behind GoogleOAuthClient so tests inject a fake and the suite never
@@ -56,7 +67,7 @@ class AuthlibGoogleClient:
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
-        self._jwks: Any | None = None
+        self._jwks: KeySet | None = None
         self._jwks_fetched_at = 0.0
 
     def authorization_url(self, state: str, code_challenge: str) -> str:
@@ -104,7 +115,7 @@ class AuthlibGoogleClient:
         return GoogleIdentity(
             sub=str(claims["sub"]),
             email=str(claims.get("email", "")),
-            email_verified=bool(claims.get("email_verified", False)),
+            email_verified=_is_verified(claims),
             name=claims.get("name"),
         )
 
@@ -145,5 +156,11 @@ class AuthlibGoogleClient:
         return dict(token.claims)
 
 
+@lru_cache(maxsize=1)
 def get_google_client() -> GoogleOAuthClient:
-    return AuthlibGoogleClient(get_settings())
+    # get_settings is itself lru_cache(maxsize=1), so the settings object is
+    # already process-lifetime; caching the client changes nothing about
+    # staleness and lets the JWKS cache in GoogleClient actually survive
+    # across requests. dependency_overrides replaces this callable by
+    # identity, so overriding it in tests is unaffected by the cache.
+    return GoogleClient(get_settings())
