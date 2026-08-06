@@ -583,7 +583,11 @@ Expected: 4 passed.
 
 - [ ] **Step 10: Update the migration tests, and make them restore the schema**
 
-Two changes to `api/tests/test_migrations.py`.
+Three changes to `api/tests/test_migrations.py`.
+
+**Zeroth**, `test_baseline_migration_applies_and_reverses` asserts
+`version == "0001"` after upgrading to head. Head is now `0002`. Update that
+assertion, or the file fails before any of the following matters.
 
 **First**, `test_baseline_creates_no_domain_tables` asserts the table set after
 upgrading to **head**, which is now `0002` and does create tables. Rename it to
