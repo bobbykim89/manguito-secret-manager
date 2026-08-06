@@ -741,7 +741,16 @@ export function RequireSession() {
     return <Navigate to="/login" replace />;
   }
 
-  return <Outlet />;
+  if (session.status === "authenticated") {
+    return <Outlet />;
+  }
+
+  // A fifth Session arm must fail tsc here rather than falling through to
+  // Outlet. Defaulting an unrecognised state to "let them in" is the wrong
+  // direction for a component whose job is deciding who gets in, and the
+  // change that added the arm would live in another file entirely.
+  const unhandled: never = session;
+  throw new Error(`Unhandled session status: ${JSON.stringify(unhandled)}`);
 }
 ```
 
