@@ -1,10 +1,12 @@
+import base64
 import hashlib
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import Engine, select
+from sqlalchemy import Engine, select, text
 from sqlalchemy.orm import Session
 
 from app.auth.sessions import (
+    _TOKEN_BYTES,
     SESSION_LIFETIME,
     create_session,
     delete_session,
@@ -23,11 +25,18 @@ def make_user(session: Session, sub: str) -> User:
     return user
 
 
-def test_generated_tokens_are_unique_and_long() -> None:
+def test_generated_tokens_are_unique_and_carry_full_entropy() -> None:
+    # Pinned to a literal, not just to _TOKEN_BYTES: generate_token() reads
+    # _TOKEN_BYTES too, so comparing solely against that constant would let
+    # both sides drift together and never catch a weakened value.
+    assert _TOKEN_BYTES == 32
+
     tokens = {generate_token() for _ in range(100)}
 
     assert len(tokens) == 100
-    assert all(len(token) >= 32 for token in tokens)
+    for token in tokens:
+        padding = "=" * (-len(token) % 4)
+        assert len(base64.urlsafe_b64decode(token + padding)) == _TOKEN_BYTES
 
 
 def test_hash_token_is_sha256_of_the_utf8_token() -> None:
@@ -44,7 +53,15 @@ def test_create_session_returns_the_plaintext_and_stores_only_the_hash(
         session.commit()
 
         assert row.token_hash == hash_token(token)
-        assert token not in repr(row)
+        stored_row = (
+            session.execute(
+                text("SELECT * FROM sessions WHERE token_hash = :hash"),
+                {"hash": hash_token(token)},
+            )
+            .mappings()
+            .one()
+        )
+        assert all(token not in str(value) for value in stored_row.values())
         stored = session.execute(select(UserSession.token_hash)).scalars().all()
         assert hash_token(token) in stored
 
