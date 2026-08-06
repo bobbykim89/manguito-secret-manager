@@ -44,6 +44,15 @@ describe("createQueryClient", () => {
     expect(queryClient.getQueryData(SESSION_QUERY_KEY)).toBeUndefined();
   });
 
+  it("clears the session for a key that merely starts with session", async () => {
+    const queryClient = await failWith(
+      new ApiError("UNAUTHENTICATED", "Authentication is required.", 401),
+      ["session", "history"],
+    );
+
+    expect(queryClient.getQueryData(SESSION_QUERY_KEY)).toBeNull();
+  });
+
   it("ignores errors that are not ApiError at all", async () => {
     const queryClient = await failWith(new Error("boom"), ["buckets"]);
 

@@ -31,7 +31,13 @@ export function createQueryClient(): QueryClient {
       }
       // The guard reads the session query's own error directly, so clearing it
       // here would tell it nothing and would replace an error state with data.
-      if (query.queryKey[0] === SESSION_QUERY_KEY[0]) {
+      // Full key equality, not just the first element: a future key such as
+      // ["session", "history"] is an ordinary authenticated call, and a 401
+      // from it should clear the session like any other.
+      if (
+        query.queryKey.length === SESSION_QUERY_KEY.length &&
+        query.queryKey[0] === SESSION_QUERY_KEY[0]
+      ) {
         return;
       }
       if (error instanceof ApiError && error.code === "UNAUTHENTICATED") {
