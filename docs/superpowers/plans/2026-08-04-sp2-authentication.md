@@ -300,6 +300,31 @@ def test_user_round_trips(migrated_engine: Engine) -> None:
         assert user.updated_at is not None
 
 
+def test_updating_a_user_advances_updated_at(migrated_engine: Engine) -> None:
+    """Proves onupdate fires, which asserting non-null after an insert does not.
+
+    func.now() returns the transaction timestamp in Postgres, so the update
+    has to happen in a separate transaction or both stamps are identical.
+    """
+    with Session(migrated_engine) as session:
+        user = User(google_sub="touch-1", email="before@example.com")
+        session.add(user)
+        session.commit()
+        user_id = user.id
+        created = user.created_at
+        first_updated = user.updated_at
+
+    with Session(migrated_engine) as session:
+        stored = session.get(User, user_id)
+        assert stored is not None
+        stored.email = "after@example.com"
+        session.commit()
+        session.refresh(stored)
+
+        assert stored.updated_at > first_updated
+        assert stored.created_at == created
+
+
 def test_google_sub_is_unique(migrated_engine: Engine) -> None:
     with Session(migrated_engine) as session:
         session.add(User(google_sub="dupe", email="one@example.com"))
@@ -459,7 +484,11 @@ class UserSession(Base):
         primary_key=True,
         server_default=text("gen_random_uuid()"),
     )
-    token_hash: Mapped[bytes] = mapped_column(LargeBinary, unique=True, nullable=False, index=True)
+    # unique=True alone, matching google_sub. Adding index=True as well would
+    # merge into a single unique index in the model while the migration
+    # declares a constraint, and autogenerate would then propose spurious
+    # drops and recreates forever after.
+    token_hash: Mapped[bytes] = mapped_column(LargeBinary, unique=True, nullable=False)
     user_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
@@ -565,13 +594,13 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("token_hash"),
     )
-    op.create_index("ix_sessions_token_hash", "sessions", ["token_hash"])
+    # No explicit index on token_hash: the unique constraint above already
+    # builds one, and Postgres uses it for the equality lookup.
     op.create_index("ix_sessions_expires_at", "sessions", ["expires_at"])
 
 
 def downgrade() -> None:
     op.drop_index("ix_sessions_expires_at", table_name="sessions")
-    op.drop_index("ix_sessions_token_hash", table_name="sessions")
     op.drop_table("sessions")
     op.drop_table("users")
 ```
