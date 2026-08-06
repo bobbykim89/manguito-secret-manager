@@ -541,21 +541,47 @@ def downgrade() -> None:
 Run: `cd api && uv run pytest tests/test_models.py -v`
 Expected: 4 passed.
 
-- [ ] **Step 10: Verify the migration reverses cleanly**
+- [ ] **Step 10: Update the migration tests, and make them restore the schema**
 
-Run: `cd api && uv run pytest tests/test_migrations.py -v`
-Expected: the existing 2 tests still pass. Note that `test_baseline_creates_no_domain_tables` asserts the table set after upgrading to **head**, which is now `0002` and does create tables. Update that test: rename it to `test_migrations_create_the_expected_tables` and change the assertion to:
+Two changes to `api/tests/test_migrations.py`.
+
+**First**, `test_baseline_creates_no_domain_tables` asserts the table set after
+upgrading to **head**, which is now `0002` and does create tables. Rename it to
+`test_migrations_create_the_expected_tables`, replace its docstring with
+`"""SP2 adds exactly two tables and no more."""`, and change the assertion to:
 
 ```python
         tables = set(inspect(engine).get_table_names())
         assert tables == {"alembic_version", "users", "sessions"}
 ```
 
-Keep the docstring honest by replacing it with:
+**Second, and this one is a real bug if skipped.** Both tests in this file end
+with the database downgraded to `base`. The new `migrated_engine` fixture is
+session scoped, so it upgrades once and never again. Alphabetically
+`test_migrations` runs before `test_models`, so leaving the database at `base`
+drops the tables every later test depends on, producing failures in files that
+did nothing wrong.
+
+Make both tests restore the schema. Each must end with:
 
 ```python
-    """SP2 adds exactly two tables and no more."""
+    command.upgrade(config, "head")
 ```
+
+In `test_baseline_migration_applies_and_reverses`, add it after the downgrade
+assertions. In `test_migrations_create_the_expected_tables`, replace the
+`finally: command.downgrade(config, "base")` with a `finally` that downgrades
+and then upgrades again, so the assertion still runs against a known state but
+the file leaves the database as it found it.
+
+- [ ] **Step 10b: Prove the ordering bug is actually gone**
+
+Run the two files together in the order pytest would collect them:
+
+Run: `cd api && uv run pytest tests/test_migrations.py tests/test_models.py -v`
+Expected: all 6 pass. Before the restore is added, `test_models` fails with
+`UndefinedTable`. Run it once without the fix if you want to see the failure
+mode, then add the fix.
 
 - [ ] **Step 11: Run lint and the full suite**
 
