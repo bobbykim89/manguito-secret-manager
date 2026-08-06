@@ -2130,7 +2130,15 @@ def google_callback(
         return fail("CONSENT_DENIED")
 
     stored = read_oauth_cookie(request.cookies.get(OAUTH_COOKIE))
-    if stored is None or state is None or not secrets.compare_digest(stored[0], state):
+    # Compared as bytes: secrets.compare_digest raises TypeError on str
+    # arguments containing non-ASCII characters, and Starlette percent-decodes
+    # query params as UTF-8, so ?state=caf%C3%A9 would escape fail() entirely
+    # and leave the OAuth cookie set through a 500.
+    if (
+        stored is None
+        or state is None
+        or not secrets.compare_digest(stored[0].encode(), state.encode())
+    ):
         return fail("INVALID_STATE")
 
     if code is None:
