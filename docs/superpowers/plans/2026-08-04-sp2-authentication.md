@@ -1859,8 +1859,12 @@ def start_flow(client: TestClient) -> tuple[str, str]:
 
 
 def error_code(response: Any) -> str:
-    """The response type comes from httpx2 via TestClient, so it is left loose."""
-    return parse_qs(urlparse(response.headers["location"]).query)["error"][0]
+    """The response type comes from httpx2 via TestClient, so it is left loose.
+
+    The str() is not decorative: without it mypy strict rejects the return as
+    no-any-return, because indexing an Any propagates Any.
+    """
+    return str(parse_qs(urlparse(response.headers["location"]).query)["error"][0])
 
 
 def test_start_redirects_to_google_and_sets_the_oauth_cookie(
