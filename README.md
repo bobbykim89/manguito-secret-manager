@@ -3,12 +3,13 @@
 A self-hosted secret manager: encrypted key/value storage with a web UI and a
 programmatic API for CI pipelines.
 
-> **Status:** SP1, skeleton and pipeline. The application runs end to end
-> locally and the deployment configuration is written, but it has never been
-> applied and nothing is deployed yet. Provisioning the database, backend,
-> frontend, and domain is the remaining step. No secrets are stored: there is no schema, no
-> authentication, and no cryptography yet. See `docs/superpowers/specs/` for
-> the sub-project plan and `docs/adr/` for the decision record.
+> **Status:** SP2, authentication. Google OAuth and server side sessions are
+> implemented and tested end to end in the backend. There is no login screen
+> yet, so the flow cannot be driven from a browser. Nothing is deployed: the
+> deployment configuration is written but has never been applied. No secrets
+> are stored: there is no bucket or secret schema, and no encryption, yet. See
+> `docs/superpowers/specs/` for the sub-project plan and `docs/adr/` for the
+> decision record.
 
 ## Architecture
 
@@ -64,6 +65,40 @@ Then open <http://localhost:5173>.
 | `make migrate` | Apply migrations locally |
 | `make db-up` | Start local Postgres |
 | `make db-down` | Stop local Postgres |
+
+## Authentication
+
+Google OAuth with server side sessions. The backend performs the code
+exchange; the frontend never sees a Google token.
+
+To run login locally you need a Google OAuth client:
+
+1. In the Google Cloud console, create an OAuth 2.0 Client ID of type **Web
+   application**.
+2. Add two authorized redirect URIs to the same client:
+   - `http://localhost:8000/v1/auth/google/callback`
+   - `https://api.<domain>/v1/auth/google/callback`
+
+   Google permits plain `http` for `localhost` specifically, so no tunnel or
+   self signed certificate is needed.
+3. Copy the client id and secret into `.env`.
+
+The redirect URI is configuration rather than something derived from the
+request `Host` header. Deriving it is how open redirect bugs start.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /v1/auth/google/start` | Begin login |
+| `GET /v1/auth/google/callback` | Complete login |
+| `GET /v1/auth/me` | Current user, or 401 |
+| `POST /v1/auth/logout` | Destroy the session |
+
+`start` and `callback` redirect rather than returning the response envelope,
+because a browser navigates to them directly. Everything else returns the
+envelope.
+
+Registration is open: any Google account may sign in and gets an account on
+first login. Cross user isolation is therefore load bearing, not theoretical.
 
 ## Repository layout
 

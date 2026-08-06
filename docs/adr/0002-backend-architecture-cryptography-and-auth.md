@@ -336,3 +336,15 @@ write is needed on every authenticated request. The token is stored as a
 SHA-256 hash, for the same reason API keys are: a 256 bit random token has no
 brute force surface, so a slow KDF is pure per-request latency, and hashing
 means a stolen database dump does not hand over live sessions.
+
+### A13. SP2 outcomes
+
+Session lifetime, the cookie names, and the error codes are now fixed by
+implementation: `msm_session` and `msm_oauth`, seven day absolute expiry, and
+four callback error codes: `CONSENT_DENIED`, `INVALID_STATE` for a missing
+cookie or a mismatch, `EXCHANGE_FAILED` for a missing code and for a rejection
+or an unreachable Google, and `EMAIL_NOT_VERIFIED`. Distinct conditions
+deliberately share a code, because a browser can do nothing different with the
+distinction.
+The Google interaction sits behind a `GoogleOAuthClient` protocol so the test
+suite performs no network I/O.
