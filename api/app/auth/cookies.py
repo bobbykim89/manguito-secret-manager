@@ -47,6 +47,10 @@ def set_oauth_cookie(response: Response, state: str, verifier: str, settings: Se
     Not signed. The protection is a double submit comparison: state binds the
     callback to the browser that began the flow, and an attacker who tampers
     still needs a Google authorization matching the value they chose.
+
+    No domain: only the API host ever reads this cookie, unlike the session
+    cookie, which the frontend host also needs. Scoping it to the parent
+    domain would broadcast the PKCE verifier to a host that has no use for it.
     """
     response.set_cookie(
         OAUTH_COOKIE,
@@ -55,7 +59,6 @@ def set_oauth_cookie(response: Response, state: str, verifier: str, settings: Se
         httponly=True,
         secure=settings.is_production,
         samesite="lax",
-        domain=_domain(settings),
         path=OAUTH_COOKIE_PATH,
     )
 
@@ -72,7 +75,6 @@ def read_oauth_cookie(raw: str | None) -> tuple[str, str] | None:
 def clear_oauth_cookie(response: Response, settings: Settings) -> None:
     response.delete_cookie(
         OAUTH_COOKIE,
-        domain=_domain(settings),
         path=OAUTH_COOKIE_PATH,
         httponly=True,
         secure=settings.is_production,

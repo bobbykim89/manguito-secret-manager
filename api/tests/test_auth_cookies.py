@@ -141,6 +141,20 @@ def test_clearing_the_oauth_cookie_matches_the_production_attributes() -> None:
 
     clear_header = header_for(clear_response, OAUTH_COOKIE)
 
-    assert "Domain=.example.com" in clear_header
     assert "Secure" in clear_header
     assert "Path=/v1/auth" in clear_header
+
+
+def test_the_oauth_cookie_is_not_domain_scoped_even_in_production() -> None:
+    # Unlike the session cookie, only the API host ever reads msm_oauth, so
+    # it must not carry the PKCE verifier to the frontend host too. This is
+    # a deliberate difference from the session cookie, not an oversight, so
+    # it is asserted against both in the same test.
+    settings = settings_for("production", ".example.com")
+    oauth_response = Response()
+    set_oauth_cookie(oauth_response, "s", "v", settings)
+    session_response = Response()
+    set_session_cookie(session_response, "tok", settings)
+
+    assert "Domain=" not in header_for(oauth_response, OAUTH_COOKIE)
+    assert "Domain=.example.com" in header_for(session_response, SESSION_COOKIE)
