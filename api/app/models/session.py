@@ -28,7 +28,7 @@ class UserSession(Base):
         primary_key=True,
         server_default=text("gen_random_uuid()"),
     )
-    token_hash: Mapped[bytes] = mapped_column(LargeBinary, unique=True, nullable=False, index=True)
+    token_hash: Mapped[bytes] = mapped_column(LargeBinary, unique=True, nullable=False)
     user_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )

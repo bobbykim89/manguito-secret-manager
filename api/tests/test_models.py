@@ -26,6 +26,26 @@ def test_user_round_trips(migrated_engine: Engine) -> None:
         assert user.updated_at is not None
 
 
+def test_updating_a_user_advances_updated_at(migrated_engine: Engine) -> None:
+    with Session(migrated_engine) as session:
+        user = User(google_sub="touch-1", email="before@example.com")
+        session.add(user)
+        session.commit()
+        user_id = user.id
+        created = user.created_at
+        first_updated = user.updated_at
+
+    with Session(migrated_engine) as session:
+        stored = session.get(User, user_id)
+        assert stored is not None
+        stored.email = "after@example.com"
+        session.commit()
+        session.refresh(stored)
+
+        assert stored.updated_at > first_updated
+        assert stored.created_at == created
+
+
 def test_google_sub_is_unique(migrated_engine: Engine) -> None:
     with Session(migrated_engine) as session:
         session.add(User(google_sub="dupe", email="one@example.com"))

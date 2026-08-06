@@ -66,12 +66,10 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("token_hash"),
     )
-    op.create_index("ix_sessions_token_hash", "sessions", ["token_hash"])
     op.create_index("ix_sessions_expires_at", "sessions", ["expires_at"])
 
 
 def downgrade() -> None:
     op.drop_index("ix_sessions_expires_at", table_name="sessions")
-    op.drop_index("ix_sessions_token_hash", table_name="sessions")
     op.drop_table("sessions")
     op.drop_table("users")
