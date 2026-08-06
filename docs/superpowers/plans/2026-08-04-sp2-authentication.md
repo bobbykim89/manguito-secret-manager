@@ -1081,7 +1081,57 @@ def test_clearing_the_oauth_cookie_uses_the_same_path() -> None:
 
     header = header_for(response, OAUTH_COOKIE)
     assert "Path=/v1/auth" in header
+
+
+def test_clearing_the_session_cookie_matches_the_production_attributes() -> None:
+    """Locally neither the set nor the clear carries a Domain, so asserting its
+    absence cannot tell a correct clear from one that dropped _domain(). A
+    browser only deletes a cookie when domain and path match the original, so
+    that regression would produce a logout that appears to work and does not.
+    """
+    settings = settings_for("production", ".example.com")
+    set_response = Response()
+    set_session_cookie(set_response, "tok", settings)
+    clear_response = Response()
+    clear_session_cookie(clear_response, settings)
+
+    set_header = header_for(set_response, SESSION_COOKIE)
+    clear_header = header_for(clear_response, SESSION_COOKIE)
+
+    assert "Domain=.example.com" in clear_header
+    assert "Secure" in clear_header
+    assert "Path=/" in clear_header
+    assert "Max-Age=0" in clear_header
+    for attribute in ("Domain=.example.com", "Secure", "Path=/"):
+        assert attribute in set_header
+
+
+def test_clearing_the_oauth_cookie_matches_the_production_attributes() -> None:
+    settings = settings_for("production", ".example.com")
+    clear_response = Response()
+    clear_oauth_cookie(clear_response, settings)
+
+    clear_header = header_for(clear_response, OAUTH_COOKIE)
+
+    assert "Domain=.example.com" in clear_header
+    assert "Secure" in clear_header
+    assert "Path=/v1/auth" in clear_header
+
+
+def test_session_cookie_lifetime_follows_session_lifetime() -> None:
+    response = Response()
+    set_session_cookie(response, "tok", settings_for("local"))
+
+    header = header_for(response, SESSION_COOKIE)
+
+    # The literal matters. Asserting only against SESSION_LIFETIME would be
+    # self-satisfying, because set_session_cookie derives the max age from the
+    # same constant, so a changed value would move both sides together.
+    assert "Max-Age=604800" in header
+    assert f"Max-Age={int(SESSION_LIFETIME.total_seconds())}" in header
 ```
+
+`SESSION_LIFETIME` comes from `app.auth.sessions`; add it to that test file's imports.
 
 - [ ] **Step 2: Run the test to verify it fails**
 
