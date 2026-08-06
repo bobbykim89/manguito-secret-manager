@@ -10,6 +10,8 @@ dependencies = [
     "alembic>=1.14",
     "pydantic>=2.9",
     "pydantic-settings>=2.6",
+    "authlib>=1.7.2",
+    "httpx>=0.28.1",
 ]
 
 [dependency-groups]

@@ -16,6 +16,10 @@ DEV_ORIGIN = "http://localhost:5173"
 os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://placeholder/placeholder")
 os.environ.setdefault("CORS_ORIGINS", DEV_ORIGIN)
 os.environ.setdefault("ENVIRONMENT", "test")
+os.environ.setdefault("GOOGLE_CLIENT_ID", "test-client-id")
+os.environ.setdefault("GOOGLE_CLIENT_SECRET", "test-client-secret")
+os.environ.setdefault("GOOGLE_REDIRECT_URI", "http://testserver/v1/auth/google/callback")
+os.environ.setdefault("APP_URL", "http://testserver")
 
 
 @pytest.fixture(scope="session")
