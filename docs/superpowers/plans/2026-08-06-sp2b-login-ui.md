@@ -500,14 +500,29 @@ describe("useSession", () => {
     await waitFor(() => expect(result.current.status).toBe("error"));
   });
 
-  it("reports unauthenticated when the session has been cleared to null", async () => {
+  it("reports unauthenticated when the session has been cleared to null", () => {
+    // A handler is registered so the refetch this mount triggers is answered
+    // rather than logging an unhandled request. It deliberately returns a
+    // user: the assertion runs on the first render, which reads the cached
+    // null, so a regression that treated null as authenticated would fail
+    // here instead of being masked by a 401 arriving later.
+    server.use(
+      http.get(ME, () =>
+        HttpResponse.json({
+          ok: true,
+          data: { id: "11111111-1111-1111-1111-111111111111", email: "a@example.com", name: "A" },
+        }),
+      ),
+    );
     const queryClient = createQueryClient();
     queryClient.setQueryData(SESSION_QUERY_KEY, null);
     const { Wrapper } = wrapper(queryClient);
 
     const { result } = renderHook(() => useSession(), { wrapper: Wrapper });
 
-    await waitFor(() => expect(result.current.status).toBe("unauthenticated"));
+    // Synchronous, not waitFor: waitFor would let the refetch land first and
+    // the assertion would then measure the 200 response, not the cached null.
+    expect(result.current.status).toBe("unauthenticated");
   });
 });
 ```
