@@ -1290,14 +1290,21 @@ describe("route access", () => {
 
   it("returns the user to the login screen after signing out", async () => {
     signedIn();
-    server.use(
-      http.post("http://localhost:8000/v1/auth/logout", () =>
-        HttpResponse.json({ ok: true, data: { signed_out: true } }),
-      ),
-    );
     const router = createMemoryRouter(routes, { initialEntries: ["/"] });
     renderWithProviders(<RouterProvider router={router} />);
     await screen.findByText("a@example.com");
+
+    // The cookie is gone once logout succeeds, so /me must start refusing.
+    // Without this the login page mounts a fresh observer, refetches at the
+    // default staleTime of 0, gets a signed in user back, and bounces
+    // straight to "/" again. The test would fail for a reason the
+    // application does not actually have.
+    server.use(
+      http.post("http://localhost:8000/v1/auth/logout", () => {
+        signedOut();
+        return HttpResponse.json({ ok: true, data: { signed_out: true } });
+      }),
+    );
 
     await userEvent.click(screen.getByRole("button", { name: /sign out/i }));
 
