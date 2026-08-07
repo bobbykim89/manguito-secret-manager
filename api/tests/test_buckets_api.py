@@ -164,8 +164,16 @@ def test_create_and_delete_are_both_audited(client: TestClient, db_session: Sess
     assert {entry.bucket_name for entry in entries} == {"watched"}
 
 
-def test_a_failed_create_leaves_no_audit_entry(client: TestClient, db_session: Session) -> None:
-    """The audit entry shares the action's transaction, so a rollback takes it."""
+def test_a_duplicate_create_never_reaches_the_audit_writer(
+    client: TestClient, db_session: Session
+) -> None:
+    """A create rejected by the unique constraint writes no audit entry.
+
+    Narrower than it looks: create_bucket flushes and raises before the
+    endpoint reaches record_audit, so this pins the ordering rather than
+    the rollback. test_an_action_rolls_back_when_its_audit_entry_fails is
+    what covers atomicity.
+    """
     user = sign_in(client, db_session, "api-audit-rollback")
     client.post("/v1/buckets", json={"name": "once"})
 
@@ -173,6 +181,40 @@ def test_a_failed_create_leaves_no_audit_entry(client: TestClient, db_session: S
 
     entries = list(db_session.scalars(select(AuditEntry).where(AuditEntry.user_id == user.id)))
     assert [entry.action for entry in entries] == ["bucket.created"]
+
+
+def test_an_action_rolls_back_when_its_audit_entry_fails(
+    db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A bucket must not exist if the entry recording it never landed.
+
+    ADR 002 A17's guarantee runs in this direction: an action that
+    succeeded without its audit row is worse than one that failed, because
+    the row is the only record that it happened at all.
+
+    Built on its own client because raise_server_exceptions defaults to
+    True, which would re-raise the failure instead of letting the app's
+    handler render it.
+    """
+    from app.main import app
+
+    with TestClient(app, raise_server_exceptions=False) as failing_client:
+        user = sign_in(failing_client, db_session, "api-audit-atomic")
+
+        def explode(*args: object, **kwargs: object) -> None:
+            raise RuntimeError("audit writer unavailable")
+
+        monkeypatch.setattr("app.routers.buckets.record_audit", explode)
+
+        response = failing_client.post("/v1/buckets", json={"name": "orphan"})
+
+    assert response.status_code == 500
+    assert (
+        db_session.scalars(
+            select(Bucket).where(Bucket.user_id == user.id, Bucket.name == "orphan")
+        ).one_or_none()
+        is None
+    )
 
 
 def test_no_key_material_reaches_the_logs(
