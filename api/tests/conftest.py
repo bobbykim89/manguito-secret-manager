@@ -1,3 +1,4 @@
+import base64
 import os
 from collections.abc import Iterator
 from pathlib import Path
@@ -26,6 +27,10 @@ os.environ.setdefault("GOOGLE_CLIENT_ID", "test-client-id")
 os.environ.setdefault("GOOGLE_CLIENT_SECRET", "test-client-secret")
 os.environ.setdefault("GOOGLE_REDIRECT_URI", "http://testserver/v1/auth/google/callback")
 os.environ.setdefault("APP_URL", "http://testserver")
+# A real 32 byte key, base64 encoded. The validator rejects a placeholder
+# string, which is the point: a broken KEK must not be silently tolerated.
+os.environ.setdefault("SECRETS_KEKS", "1:" + base64.b64encode(bytes(range(32))).decode())
+os.environ.setdefault("SECRETS_KEK_VERSION", "1")
 
 
 @pytest.fixture(scope="session")
@@ -46,13 +51,16 @@ def postgres_url() -> Iterator[str]:
 @pytest.fixture(scope="session", autouse=True)
 def _reset_caches(postgres_url: str) -> Iterator[None]:
     from app.config import get_settings
+    from app.crypto.keys import get_key_provider
     from app.db import get_engine
 
     get_settings.cache_clear()
     get_engine.cache_clear()
+    get_key_provider.cache_clear()
     yield
     get_settings.cache_clear()
     get_engine.cache_clear()
+    get_key_provider.cache_clear()
 
 
 @pytest.fixture(scope="session")

@@ -1,4 +1,7 @@
+import base64
+
 import pytest
+from pydantic import ValidationError
 
 from app.config import Settings
 
@@ -113,3 +116,87 @@ def test_is_production_follows_environment(monkeypatch: pytest.MonkeyPatch) -> N
 
     monkeypatch.setenv("ENVIRONMENT", "staging")
     assert Settings().is_production is True
+
+
+KEK_A = base64.b64encode(bytes(range(32))).decode()
+KEK_B = base64.b64encode(bytes(range(32, 64))).decode()
+
+_REQUIRED: dict[str, object] = {
+    "database_url": "postgresql+psycopg://x/x",
+    "google_client_id": "id",
+    "google_client_secret": "secret",
+    "google_redirect_uri": "http://testserver/cb",
+    "app_url": "http://testserver",
+}
+
+
+def build_settings(**overrides: object) -> Settings:
+    """Settings built from explicit values only.
+
+    _env_file=None stops pydantic-settings reading the repository's real
+    .env, which would otherwise make these assertions depend on the
+    developer's local configuration.
+    """
+    values = {**_REQUIRED, "secrets_keks": f"1:{KEK_A}", "secrets_kek_version": 1, **overrides}
+    return Settings(_env_file=None, **values)  # type: ignore[arg-type]
+
+
+def test_kek_map_parses_multiple_versions() -> None:
+    settings = build_settings(secrets_keks=f"1:{KEK_A},2:{KEK_B}", secrets_kek_version=2)
+
+    assert set(settings.kek_map) == {1, 2}
+    assert len(settings.kek_map[1]) == 32
+
+
+def test_a_current_version_that_is_not_configured_fails() -> None:
+    with pytest.raises(ValidationError):
+        build_settings(secrets_keks=f"1:{KEK_A}", secrets_kek_version=9)
+
+
+def test_a_kek_of_the_wrong_length_fails() -> None:
+    short = base64.b64encode(b"too short").decode()
+
+    with pytest.raises(ValidationError):
+        build_settings(secrets_keks=f"1:{short}")
+
+
+def test_malformed_base64_fails() -> None:
+    with pytest.raises(ValidationError):
+        build_settings(secrets_keks="1:not-valid-base64!!")
+
+
+def test_a_missing_version_prefix_fails() -> None:
+    with pytest.raises(ValidationError):
+        build_settings(secrets_keks=KEK_A)
+
+
+def test_an_empty_kek_list_fails() -> None:
+    with pytest.raises(ValidationError):
+        build_settings(secrets_keks="")
+
+
+def test_a_duplicate_version_fails() -> None:
+    with pytest.raises(ValidationError):
+        build_settings(secrets_keks=f"1:{KEK_A},1:{KEK_B}")
+
+
+def test_a_rejected_kek_never_appears_in_the_error() -> None:
+    """Invariant 1 applied to configuration.
+
+    A wrong length KEK is still real key material, and a ValidationError
+    string lands in logs and in crash reports.
+    """
+    short = base64.b64encode(bytes(range(31))).decode()
+
+    with pytest.raises(ValidationError) as raised:
+        build_settings(secrets_keks=f"1:{short}")
+
+    assert short not in str(raised.value)
+
+
+def test_secrets_keks_is_required(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("SECRETS_KEKS", raising=False)
+    monkeypatch.delenv("SECRETS_KEK_VERSION", raising=False)
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, **_REQUIRED)  # type: ignore[arg-type]
