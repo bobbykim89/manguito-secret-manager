@@ -14,6 +14,11 @@ export const SESSION_QUERY_KEY = ["session"] as const;
  * callback would hide routing somewhere nobody looks and create an import
  * cycle between the router and this module.
  *
+ * The handler is attached to the QueryCache, so it only sees queries.
+ * SP2b's only mutation is logout, which needs no auth and is idempotent, so
+ * that is safe here. A mutation that touches real secret data will need the
+ * same handling added to a MutationCache alongside this one.
+ *
  * A fresh client per call, so tests never share a cache.
  */
 export function createQueryClient(): QueryClient {

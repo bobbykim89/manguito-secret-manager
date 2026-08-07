@@ -109,4 +109,68 @@ describe("useSession", () => {
 
     expect(result.current.status).toBe("unauthenticated");
   });
+
+  it("keeps the cached user through a failed refetch", async () => {
+    // refetchOnWindowFocus is on, so a stale, momentarily-failing /me is
+    // routine, not exceptional. The first response is the initial mount; the
+    // second is the refetch triggered explicitly below.
+    let requestCount = 0;
+    server.use(
+      http.get(ME, () => {
+        requestCount += 1;
+        if (requestCount === 1) {
+          return HttpResponse.json({
+            ok: true,
+            data: { id: "11111111-1111-1111-1111-111111111111", email: "a@example.com", name: "A" },
+          });
+        }
+        return HttpResponse.json(
+          { ok: false, error: { code: "INTERNAL_ERROR", message: "An unexpected error occurred." } },
+          { status: 500 },
+        );
+      }),
+    );
+    const queryClient = createQueryClient();
+    const { Wrapper } = wrapper(queryClient);
+
+    const { result } = renderHook(() => useSession(), { wrapper: Wrapper });
+
+    await waitFor(() => expect(result.current.status).toBe("authenticated"));
+
+    await queryClient.refetchQueries({ queryKey: SESSION_QUERY_KEY });
+
+    await waitFor(() => expect(requestCount).toBe(2));
+    expect(result.current.status).toBe("authenticated");
+  });
+
+  it("becomes unauthenticated when a refetch returns 401", async () => {
+    // The regression a plain reorder would introduce: cached data must not
+    // paper over a 401, which is the one failure that means logged out.
+    let requestCount = 0;
+    server.use(
+      http.get(ME, () => {
+        requestCount += 1;
+        if (requestCount === 1) {
+          return HttpResponse.json({
+            ok: true,
+            data: { id: "11111111-1111-1111-1111-111111111111", email: "a@example.com", name: "A" },
+          });
+        }
+        return HttpResponse.json(
+          { ok: false, error: { code: "UNAUTHENTICATED", message: "Authentication is required." } },
+          { status: 401 },
+        );
+      }),
+    );
+    const queryClient = createQueryClient();
+    const { Wrapper } = wrapper(queryClient);
+
+    const { result } = renderHook(() => useSession(), { wrapper: Wrapper });
+
+    await waitFor(() => expect(result.current.status).toBe("authenticated"));
+
+    await queryClient.refetchQueries({ queryKey: SESSION_QUERY_KEY });
+
+    await waitFor(() => expect(result.current.status).toBe("unauthenticated"));
+  });
 });
