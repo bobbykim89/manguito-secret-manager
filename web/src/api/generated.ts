@@ -45,6 +45,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/buckets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Endpoint */
+        get: operations["list_endpoint_v1_buckets_get"];
+        put?: never;
+        /** Create Endpoint */
+        post: operations["create_endpoint_v1_buckets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/buckets/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Endpoint */
+        delete: operations["delete_endpoint_v1_buckets__name__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/health": {
         parameters: {
             query?: never;
@@ -73,6 +108,37 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * BucketData
+         * @description What a bucket looks like from outside.
+         *
+         *     Carries no wrapped_dek and no kek_version. The key tier is not a user
+         *     facing concept and nothing about it leaves the server.
+         */
+        BucketData: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+        };
+        /** CreateBucketRequest */
+        CreateBucketRequest: {
+            /** Name */
+            name: string;
+        };
+        /** DeletedData */
+        DeletedData: {
+            /** Deleted */
+            deleted: boolean;
+        };
+        /**
          * Err
          * @description Failure arm of the ADR 002 response envelope.
          */
@@ -91,6 +157,11 @@ export interface components {
             code: string;
             /** Message */
             message: string;
+        };
+        /** HTTPValidationError */
+        HTTPValidationError: {
+            /** Detail */
+            detail?: components["schemas"]["ValidationError"][];
         };
         /** HealthData */
         HealthData: {
@@ -113,6 +184,26 @@ export interface components {
             id: string;
             /** Name */
             name: string | null;
+        };
+        /** Ok[BucketData] */
+        Ok_BucketData_: {
+            data: components["schemas"]["BucketData"];
+            /**
+             * Ok
+             * @default true
+             * @constant
+             */
+            ok: true;
+        };
+        /** Ok[DeletedData] */
+        Ok_DeletedData_: {
+            data: components["schemas"]["DeletedData"];
+            /**
+             * Ok
+             * @default true
+             * @constant
+             */
+            ok: true;
         };
         /** Ok[HealthData] */
         Ok_HealthData_: {
@@ -143,6 +234,30 @@ export interface components {
              * @constant
              */
             ok: true;
+        };
+        /** Ok[list[BucketData]] */
+        Ok_list_BucketData__: {
+            /** Data */
+            data: components["schemas"]["BucketData"][];
+            /**
+             * Ok
+             * @default true
+             * @constant
+             */
+            ok: true;
+        };
+        /** ValidationError */
+        ValidationError: {
+            /** Context */
+            ctx?: Record<string, never>;
+            /** Input */
+            input?: unknown;
+            /** Location */
+            loc: (string | number)[];
+            /** Message */
+            msg: string;
+            /** Error Type */
+            type: string;
         };
     };
     responses: never;
@@ -198,6 +313,135 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Err"];
+                };
+            };
+        };
+    };
+    list_endpoint_v1_buckets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ok_list_BucketData__"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Err"];
+                };
+            };
+        };
+    };
+    create_endpoint_v1_buckets_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateBucketRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ok_BucketData_"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Err"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Err"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Err"];
+                };
+            };
+        };
+    };
+    delete_endpoint_v1_buckets__name__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ok_DeletedData_"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Err"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Err"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
