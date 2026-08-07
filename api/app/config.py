@@ -2,7 +2,7 @@ import base64
 import binascii
 from functools import lru_cache
 
-from pydantic import field_validator, model_validator
+from pydantic import ValidationError, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Values that are definitely not production. Anything else, including a
@@ -14,6 +14,16 @@ _NON_PRODUCTION = frozenset({"local", "test", "schema-dump"})
 # A KEK is exactly AES-256's key size. Anything else is a configuration
 # error, not a shorter key.
 _KEK_BYTES = 32
+
+
+class ConfigurationError(Exception):
+    """Configuration is invalid, reported without the values that failed.
+
+    Deliberately not a ValidationError. Pydantic captures the raw input it
+    rejected and exposes it through .errors() and .json(), which for
+    SECRETS_KEKS is the KEK itself. Anything that serialises exceptions
+    would then emit it.
+    """
 
 
 class Settings(BaseSettings):
@@ -119,4 +129,15 @@ class Settings(BaseSettings):
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    return Settings()
+    try:
+        return Settings()
+    except ValidationError as error:
+        # An allowlist over loc and msg, never input. Same shape as the
+        # logging rule: name the field that failed and why, never the value.
+        details = "; ".join(
+            f"{'.'.join(str(part) for part in item['loc']) or 'config'}: {item['msg']}"
+            for item in error.errors()
+        )
+        # from None, not from error: chaining would keep the leaking
+        # exception reachable as __cause__ and in the printed traceback.
+        raise ConfigurationError(f"Invalid configuration. {details}") from None

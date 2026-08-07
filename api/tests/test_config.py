@@ -3,7 +3,7 @@ import base64
 import pytest
 from pydantic import ValidationError
 
-from app.config import Settings
+from app.config import ConfigurationError, Settings, get_settings
 
 
 def test_settings_read_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -200,3 +200,32 @@ def test_secrets_keks_is_required(monkeypatch: pytest.MonkeyPatch) -> None:
 
     with pytest.raises(ValidationError):
         Settings(_env_file=None, **_REQUIRED)  # type: ignore[arg-type]
+
+
+def test_get_settings_does_not_leak_the_kek_in_a_structured_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The surface str() missed.
+
+    A pydantic ValidationError carries the raw input it rejected in
+    .errors() and .json(). For SECRETS_KEKS that input is the KEK. str()
+    happened not to show it, but only because pydantic truncates its dict
+    repr at a fixed width and this field sits late in the declaration
+    order, which is luck rather than a guarantee.
+    """
+    leaked = base64.b64encode(bytes(range(31))).decode()
+    monkeypatch.setenv("SECRETS_KEKS", f"1:{leaked}")
+    get_settings.cache_clear()
+
+    try:
+        with pytest.raises(ConfigurationError) as raised:
+            get_settings()
+    finally:
+        get_settings.cache_clear()
+
+    assert leaked not in str(raised.value)
+    assert leaked not in repr(raised.value)
+    assert not hasattr(raised.value, "errors")
+    # from None rather than from error: a chained ValidationError would
+    # still carry the KEK, reachable and printed in the traceback.
+    assert raised.value.__cause__ is None
