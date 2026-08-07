@@ -561,6 +561,9 @@ export type Session =
  * cookie. Any other failure means we genuinely do not know: treating a
  * backend outage as logged out sends the user to the login page, where
  * signing in fails, returning them to the login page having learned nothing.
+ * A cached user also survives a transient non-401 failure, so a single
+ * dropped background refetch (refetchOnWindowFocus fires one on every tab
+ * focus) does not evict someone who is already signed in.
  */
 export function useSession(): Session {
   const query = useQuery<SessionUser | null, ApiError>({
@@ -569,19 +572,27 @@ export function useSession(): Session {
   });
 
   if (query.error) {
-    return query.error.code === "UNAUTHENTICATED"
-      ? { status: "unauthenticated" }
-      : { status: "error", message: query.error.message };
+    if (query.error.code === "UNAUTHENTICATED") {
+      return { status: "unauthenticated" };
+    }
+    // A cached user survives a transient failure. Reporting "error" here would
+    // hand the guard a reason to replace the whole application over one dropped
+    // refetch, which refetchOnWindowFocus makes routine.
+    if (query.data === undefined) {
+      return { status: "error", message: query.error.message };
+    }
   }
   if (query.isPending) {
     return { status: "pending" };
   }
   // null is written by the global 401 handler and by sign out.
-  return query.data ? { status: "authenticated", user: query.data } : { status: "unauthenticated" };
+  return query.data === null || query.data === undefined
+    ? { status: "unauthenticated" }
+    : { status: "authenticated", user: query.data };
 }
 ```
 
-The error branch is checked before `isPending` because a query whose data was cleared to `null` while an error is present would otherwise report the wrong state.
+The error branch is checked before `isPending` because a query whose data was cleared to `null` while an error is present would otherwise report the wrong state. A cached user (`query.data !== undefined`) survives any error except a 401, since `refetchOnWindowFocus` makes a single dropped background refetch routine rather than exceptional.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
