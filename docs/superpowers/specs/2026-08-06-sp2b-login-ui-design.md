@@ -130,7 +130,13 @@ retrofitting it later means touching every call site.
 ## Login screen
 
 A heading, a line of context, and one control. If a session already resolves,
-the page redirects to `/`, so a signed-in user never sees a sign-in screen.
+the page redirects to `/`.
+
+As implemented, that redirect happens once `/me` answers, so a signed-in user
+who opens `/login` directly sees the sign-in screen for the length of one round
+trip. Rendering a loading state instead would put that delay in front of every
+signed-out visitor, which is the common case, to spare a signed-out flash from
+the rare one. The flash stays.
 
 ### Error codes map to messages, and the raw parameter is never rendered
 
