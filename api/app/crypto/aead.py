@@ -7,10 +7,12 @@ module of that name inside a package that imports it.
 import os
 import uuid
 
+from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 NONCE_BYTES = 12
 KEY_BYTES = 32
+TAG_BYTES = 16
 
 
 def build_aad(bucket_id: uuid.UUID, key_name: str) -> bytes:
@@ -52,4 +54,10 @@ def decrypt(key: bytes, blob: bytes, aad: bytes) -> bytes:
     """
     if len(key) != KEY_BYTES:
         raise ValueError(f"key must be {KEY_BYTES} bytes, got {len(key)}")
+    if len(blob) < NONCE_BYTES + TAG_BYTES:
+        # Too short to hold a nonce and a tag, so it cannot authenticate.
+        # Raised here rather than left to the library, which reports a short
+        # blob as a nonce length ValueError and would give callers a second
+        # exception type to handle for the same underlying condition.
+        raise InvalidTag
     return AESGCM(key).decrypt(blob[:NONCE_BYTES], blob[NONCE_BYTES:], aad)

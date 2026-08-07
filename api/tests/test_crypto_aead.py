@@ -79,7 +79,10 @@ def test_aad_is_injective(
 ) -> None:
     """No two distinct (bucket_id, key_name) pairs share an AAD.
 
-    This is the property ADR 002 A2 requires. Plain concatenation fails it.
+    A UUID is fixed width, so this holds with or without the length prefix.
+    It is the guarantee that matters; test_build_aad_is_not_plain_concatenation
+    is what guards the prefix that keeps the guarantee independent of the id's
+    representation.
     """
     if (first_id, first_name) == (second_id, second_name):
         return
@@ -90,3 +93,34 @@ def test_aad_is_injective(
 def test_a_wrong_sized_key_is_rejected() -> None:
     with pytest.raises(ValueError):
         encrypt(b"short", b"value", AAD)
+
+
+@pytest.mark.parametrize("blob", [b"", b"short", bytes(NONCE_BYTES), bytes(NONCE_BYTES + 15)])
+def test_a_blob_too_short_to_authenticate_raises_invalid_tag(blob: bytes) -> None:
+    """One exception type for one condition.
+
+    The library reports a blob shorter than eight bytes as a nonce length
+    ValueError, which would hand callers a second thing to catch for what is
+    really the same failure: this data cannot be authenticated.
+    """
+    with pytest.raises(InvalidTag):
+        decrypt(KEY, blob, AAD)
+
+
+def test_decrypt_rejects_a_wrong_sized_key() -> None:
+    """The same guard as encrypt's, which had a test while this one did not."""
+    with pytest.raises(ValueError):
+        decrypt(b"short", encrypt(KEY, b"value", AAD), AAD)
+
+
+def test_build_aad_is_not_plain_concatenation() -> None:
+    """Guards the length prefix itself.
+
+    Injectivity currently rests on a UUID being fixed width rather than on
+    the prefix, so the property test above would keep passing if someone
+    reduced this to id.bytes + name. This is what would not.
+    """
+    name = "DATABASE_URL"
+
+    assert build_aad(BUCKET, name) != BUCKET.bytes + name.encode("utf-8")
+    assert build_aad(BUCKET, name).startswith((16).to_bytes(4, "big"))
