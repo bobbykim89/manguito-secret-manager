@@ -40,6 +40,17 @@ export type OkArmMatchesGeneratedSchema = AssertTrue<
 
 const BASE_URL: string = import.meta.env.VITE_API_URL ?? "";
 
+/**
+ * Absolute URL for a path on the API.
+ *
+ * Exported so callers that cannot go through `request`, such as the sign-in
+ * anchor that must be a real browser navigation, do not read VITE_API_URL a
+ * second time and drift from this module.
+ */
+export function apiUrl(path: string): string {
+  return `${BASE_URL}${path}`;
+}
+
 function isErrorBody(value: unknown): value is ErrEnvelope["error"] {
   if (typeof value !== "object" || value === null) {
     return false;
@@ -94,4 +105,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const client = {
   get: <T>(path: string): Promise<T> => request<T>(path),
+  post: <T>(path: string, body?: unknown): Promise<T> =>
+    request<T>(
+      path,
+      body === undefined
+        ? { method: "POST" }
+        : {
+            method: "POST",
+            body: JSON.stringify(body),
+            headers: { "Content-Type": "application/json" },
+          },
+    ),
 };

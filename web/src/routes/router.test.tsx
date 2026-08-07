@@ -8,17 +8,17 @@ import { server } from "../test/setup";
 import { routes } from "./router";
 
 describe("router", () => {
-  it("renders the health page at the index route", async () => {
+  it("renders the health page at /health", async () => {
     server.use(
       http.get("http://localhost:8000/v1/health", () =>
         HttpResponse.json({ ok: true, data: { db: "ok" } }),
       ),
     );
-    const router = createMemoryRouter(routes, { initialEntries: ["/"] });
+    const router = createMemoryRouter(routes, { initialEntries: ["/health"] });
 
     renderWithProviders(<RouterProvider router={router} />);
 
-    expect(await screen.findByRole("heading", { name: /manguito secret manager/i })).toBeInTheDocument();
+    expect(await screen.findByText(/database: ok/i)).toBeInTheDocument();
   });
 
   it("renders a not-found message for an unknown path", async () => {

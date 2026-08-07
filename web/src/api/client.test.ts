@@ -2,7 +2,7 @@ import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { server } from "../test/setup";
-import { ApiError, client } from "./client";
+import { apiUrl, ApiError, client } from "./client";
 
 const BASE = "http://localhost:8000";
 
@@ -108,5 +108,79 @@ describe("client", () => {
     );
 
     await expect(client.get("/v1/health")).rejects.toBeInstanceOf(ApiError);
+  });
+});
+
+describe("client.post", () => {
+  it("sends a POST and returns the data arm", async () => {
+    let method: string | undefined;
+    server.use(
+      http.post(`${BASE}/v1/auth/logout`, ({ request }) => {
+        method = request.method;
+        return HttpResponse.json({ ok: true, data: { signed_out: true } });
+      }),
+    );
+
+    await expect(client.post<{ signed_out: boolean }>("/v1/auth/logout")).resolves.toEqual({
+      signed_out: true,
+    });
+    expect(method).toBe("POST");
+  });
+
+  it("sends no body and no content type when none is given", async () => {
+    let contentType: string | null = null;
+    let raw = "";
+    server.use(
+      http.post(`${BASE}/v1/auth/logout`, async ({ request }) => {
+        contentType = request.headers.get("content-type");
+        raw = await request.text();
+        return HttpResponse.json({ ok: true, data: { signed_out: true } });
+      }),
+    );
+
+    await client.post("/v1/auth/logout");
+
+    expect(contentType).toBeNull();
+    expect(raw).toBe("");
+  });
+
+  it("serialises a body as JSON when one is given", async () => {
+    let received: unknown;
+    let contentType: string | null = null;
+    server.use(
+      http.post(`${BASE}/v1/thing`, async ({ request }) => {
+        contentType = request.headers.get("content-type");
+        received = await request.json();
+        return HttpResponse.json({ ok: true, data: { ok: 1 } });
+      }),
+    );
+
+    await client.post("/v1/thing", { name: "x" });
+
+    expect(received).toEqual({ name: "x" });
+    expect(contentType).toContain("application/json");
+  });
+
+  it("throws ApiError on the failure arm, like get", async () => {
+    server.use(
+      http.post(`${BASE}/v1/auth/logout`, () =>
+        HttpResponse.json(
+          { ok: false, error: { code: "UNAUTHENTICATED", message: "Authentication is required." } },
+          { status: 401 },
+        ),
+      ),
+    );
+
+    await expect(client.post("/v1/auth/logout")).rejects.toMatchObject({
+      name: "ApiError",
+      code: "UNAUTHENTICATED",
+      status: 401,
+    });
+  });
+});
+
+describe("apiUrl", () => {
+  it("composes a path onto the configured API base", () => {
+    expect(apiUrl("/v1/auth/google/start")).toBe(`${BASE}/v1/auth/google/start`);
   });
 });
