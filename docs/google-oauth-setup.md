@@ -163,10 +163,24 @@ Three things change, and none of them are code:
 
 1. **Add the production redirect URI** to the same client:
    `https://api.<domain>/v1/auth/google/callback`.
-2. **Set the secrets on the host.** All five variables must exist before the
-   first deploy. Four of them are required and validate at import, so a
+2. **Set the secrets on the host.** All seven variables below must exist
+   before the first deploy. They are required and validate at import, so a
    deployment missing one fails during the Fly release command, before
    migrations run.
+
+   `SECRETS_KEKS` and `SECRETS_KEK_VERSION` are the envelope encryption
+   keys: a KEK wraps each bucket's data key. Generate one with the
+   one-liner from `.env.example`:
+
+   ```bash
+   python -c "import base64,os; print(base64.b64encode(os.urandom(32)).decode())"
+   ```
+
+   `SECRETS_KEKS` is a comma separated list of `version:base64` pairs, and
+   `SECRETS_KEK_VERSION` names which of those versions new buckets wrap
+   their data key with. Keeping a retired version's entry in `SECRETS_KEKS`
+   after rotating `SECRETS_KEK_VERSION` forward is what lets rows wrapped
+   under the old key still be unwrapped.
 
    ```bash
    fly secrets set \
@@ -174,9 +188,10 @@ Three things change, and none of them are code:
      GOOGLE_CLIENT_SECRET='...' \
      GOOGLE_REDIRECT_URI='https://api.<domain>/v1/auth/google/callback' \
      APP_URL='https://app.<domain>' \
-     SESSION_COOKIE_DOMAIN='.<domain>'
+     SESSION_COOKIE_DOMAIN='.<domain>' \
+     SECRETS_KEKS='1:<base64 output above>' \
+     SECRETS_KEK_VERSION='1'
    ```
-
 3. **Set `SESSION_COOKIE_DOMAIN` to `.<domain>`**, so the session cookie is
    shared between `app.<domain>` and `api.<domain>`. Leaving it empty means the
    cookie is scoped to the API host alone and the frontend never sees a logged

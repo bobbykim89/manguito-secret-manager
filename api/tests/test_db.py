@@ -19,3 +19,15 @@ def test_get_db_yields_a_usable_session(postgres_url: str) -> None:
         assert session.execute(text("SELECT 1")).scalar_one() == 1
     finally:
         sessions.close()
+
+
+def test_the_engine_hides_bound_parameters() -> None:
+    """A wrapped DEK must not reach a log through a statement error.
+
+    SQLAlchemy renders bound parameters into str(exc) for any DBAPI level
+    failure, without truncating binary, and the unhandled exception handler
+    logs that string at ERROR.
+    """
+    engine = create_db_engine("postgresql+psycopg://placeholder/placeholder")
+
+    assert engine.hide_parameters is True

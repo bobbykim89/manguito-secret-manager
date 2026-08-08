@@ -6,6 +6,7 @@ no readiness to poll. The Makefile `types` target and the `types-drift` CI
 check both invoke this script, so they cannot diverge. (ADR 001 A3)
 """
 
+import base64
 import json
 import os
 import sys
@@ -19,6 +20,8 @@ os.environ.setdefault("GOOGLE_CLIENT_ID", "schema-dump")
 os.environ.setdefault("GOOGLE_CLIENT_SECRET", "schema-dump")
 os.environ.setdefault("GOOGLE_REDIRECT_URI", "http://schema-dump/callback")
 os.environ.setdefault("APP_URL", "http://schema-dump")
+os.environ.setdefault("SECRETS_KEKS", "1:" + base64.b64encode(bytes(range(32))).decode())
+os.environ.setdefault("SECRETS_KEK_VERSION", "1")
 
 
 def main() -> None:

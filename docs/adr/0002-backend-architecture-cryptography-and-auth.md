@@ -368,3 +368,91 @@ the JWKS response cache in `GoogleClient` are both hand written, since
 its own to justify Authlib's larger surface just to avoid writing them.
 
 This supersedes the SP2 spec's Authlib decision.
+
+---
+
+## Amendments, 2026-08-07 (SP3 brainstorming)
+
+### A15. The key version belongs on the bucket, not the secret
+
+The encryption design says to store `key_version` alongside each secret. It also
+says the point of the DEK tier is that rotating the KEK becomes "rewrapping N
+bucket DEKs rather than re-encrypting every secret row". Both cannot be true of
+the same column. If KEK rotation never touches secret rows, a version stamped on
+a secret cannot be tracking the KEK, and it could only track a DEK generation,
+which this ADR never specifies.
+
+**Amended:** `kek_version` lives on `buckets`, beside the wrapped DEK it
+describes. Secret rows carry no version. If DEK rotation is ever introduced, it
+gets its own amendment and its own column.
+
+### A16. Buckets are addressed by name, unique per user
+
+`{bucket}` in every path is the bucket's name, matching this ADR's own threat
+model example, `GET /v1/buckets/prod/secrets/DATABASE_URL`. A CI config
+carrying a readable path beats one carrying a UUID.
+
+Names match `^[a-z0-9][a-z0-9_-]{0,62}$` and are unique per `(user_id, name)`,
+so two users may each own a bucket called `prod`. The charset restriction makes
+a name containing `/`, a space, or `..` impossible rather than something every
+endpoint has to escape correctly.
+
+The AAD continues to bind on the immutable bucket id, so name and identity stay
+separate concerns.
+
+### A17. The audit log starts in SP3 and records buckets by name
+
+The API surface lists an audit table without assigning it to a sub-project. It
+is built in SP3, so SP4 and SP5 call an existing helper rather than retrofitting
+one across shipped endpoints, and so the logging boundary is proven while the
+system holds no secret values at all to leak.
+
+The bucket is stored as a name in a text column, **not a foreign key**. An FK
+would cascade on bucket deletion and destroy the record of that deletion, which
+is the event most worth keeping. An audit log has to outlive its subjects.
+
+`record_audit` takes explicit named parameters, never a dict or `**kwargs`. That
+signature is the field allowlist expressed in code: no argument exists through
+which a plaintext value could arrive.
+
+`api_key_id` is present and nullable from the start, gaining its foreign key in
+SP5 when the table exists.
+
+### A18. Bucket deletion is hard, and refused while the bucket is non-empty
+
+Deleting a bucket destroys its wrapped DEK, which is what makes any ciphertext
+surviving in an old database backup permanently unreadable. That is the
+cryptographic shredding property this ADR describes, and it is why deletion is
+hard rather than soft: a soft delete retaining the wrapped DEK gives up the
+guarantee.
+
+A non-empty bucket returns `BUCKET_NOT_EMPTY` at 409. The caller deletes its
+secrets first. SP3 reserves the code and SP4 implements the guard, because SP3
+has no secrets table to count.
+
+### A19. What the AAD binding does and does not guarantee
+
+The threat model says an attacker with database write access "cannot relocate a
+ciphertext from a low-value row to a high-value one". SP3's implementation
+review established that this is true but narrower than the phrasing suggests,
+and the difference is worth stating rather than leaving to inference.
+
+**Cannot**, because the AAD binds a wrapped DEK to its bucket's id and a secret
+to its `(bucket_id, key_name)` pair: move a `wrapped_dek` between bucket rows,
+edit a bucket's `id`, forge a `kek_version`, or truncate or corrupt a wrapped
+value. All of these fail closed as `InvalidTag`, or as `UnknownKekVersion` when
+the row names a KEK the deployment does not hold.
+
+**Can**: change a bucket's `user_id` and so reassign its ownership. Nothing
+binds a bucket to its owner, only to its own id.
+
+That is deliberate rather than an oversight. The same attacker can insert a
+`sessions` row for any `user_id` and read everything through the front door, so
+binding the owner into the AAD would buy nothing against this adversary while
+making ownership permanently immutable, since changing it would make every
+secret in the bucket undecryptable.
+
+The honest summary for the README's threat model: the AAD prevents ciphertext
+relocation, not database tampering in general. An attacker with write access to
+Postgres can deny service and can reassign ownership; they cannot read a secret
+value, because the KEK is not in the database.
