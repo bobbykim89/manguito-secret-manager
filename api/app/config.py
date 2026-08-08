@@ -27,7 +27,14 @@ class ConfigurationError(Exception):
 
 
 class Settings(BaseSettings):
-    """Application configuration, read from the environment."""
+    """Application configuration, read from the environment.
+
+    Build this through get_settings rather than directly. A validation
+    failure here carries the whole input dict in ValidationError.errors()
+    and .json(), which means the KEK, the Google client secret and the
+    database password. get_settings is what keeps that out of anything
+    that serialises exceptions.
+    """
 
     model_config = SettingsConfigDict(
         env_file="../.env",

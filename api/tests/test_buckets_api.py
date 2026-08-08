@@ -222,11 +222,12 @@ def test_no_key_material_reaches_the_logs(
 ) -> None:
     """Invariant 1, exercised against the only secret material SP3 holds.
 
-    Scoped to the application's own loggers on purpose. SQLAlchemy's engine
-    logger prints bound parameters at DEBUG, which would include a wrapped
-    DEK, and that is a deliberate library behaviour rather than a defect
-    here: it is why production never runs sqlalchemy.engine at DEBUG. What
-    this test holds is that our code does not leak key material on its own.
+    Scoped to the application's own loggers on purpose. SQLAlchemy also
+    renders bound parameters into a statement error's str(exc), which would
+    include a wrapped DEK; that surface is closed by hide_parameters=True in
+    create_db_engine (see test_the_engine_hides_bound_parameters in
+    test_db.py), not by this test. What this test holds is that our code
+    does not leak key material on its own.
     """
     user = sign_in(client, db_session, "api-quiet")
     caplog.set_level(logging.DEBUG, logger="app")

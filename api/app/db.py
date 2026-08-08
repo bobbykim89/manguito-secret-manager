@@ -17,7 +17,12 @@ class Base(DeclarativeBase):
 
 
 def create_db_engine(database_url: str) -> Engine:
-    return create_engine(database_url, poolclass=NullPool, future=True)
+    # hide_parameters keeps bound values out of SQLAlchemy's exception
+    # strings. It renders them into str(exc) for any DBAPI failure, without
+    # truncating binary, so a failed insert would otherwise put a wrapped DEK
+    # into the ERROR log through the unhandled exception handler. SP4 puts
+    # secret ciphertext through the same statements.
+    return create_engine(database_url, poolclass=NullPool, future=True, hide_parameters=True)
 
 
 @lru_cache(maxsize=1)
