@@ -4,6 +4,7 @@ import logging
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth.cookies import SESSION_COOKIE
@@ -137,6 +138,46 @@ def test_valid_names_are_accepted(client: TestClient, db_session: Session, name:
     sign_in(client, db_session, f"api-ok-{abs(hash(name))}")
 
     assert client.post("/v1/buckets", json={"name": name}).status_code == 201
+
+
+@pytest.mark.parametrize("name", ["Prod", "with space", "-leading", "x" * 64])
+def test_deleting_an_invalid_name_is_rejected(
+    client: TestClient, db_session: Session, name: str
+) -> None:
+    """A name that cannot exist is refused rather than reflected.
+
+    Rejecting it discloses nothing a 404 did not, since the caller can tell
+    the name is malformed without asking the server.
+    """
+    sign_in(client, db_session, f"api-del-invalid-{name.strip().replace(' ', '-')[:20]}")
+
+    response = client.delete(f"/v1/buckets/{name}")
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+
+
+def test_an_unrelated_integrity_error_is_not_reported_as_a_duplicate(
+    db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Only the name constraint means BUCKET_EXISTS.
+
+    Anything else reaching this handler is a different failure, and calling
+    it a duplicate name would send the caller after the wrong problem.
+    """
+    from app.main import app
+
+    def explode(*args: object, **kwargs: object) -> None:
+        raise IntegrityError("INSERT ...", {}, Exception("some other violation"))
+
+    with TestClient(app, raise_server_exceptions=False) as failing_client:
+        sign_in(failing_client, db_session, "api-other-integrity")
+        monkeypatch.setattr("app.routers.buckets.create_bucket", explode)
+
+        response = failing_client.post("/v1/buckets", json={"name": "unrelated"})
+
+    assert response.status_code == 500
+    assert response.json()["error"]["code"] != "BUCKET_EXISTS"
 
 
 @pytest.mark.parametrize(

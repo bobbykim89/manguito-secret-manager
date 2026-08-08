@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Path
 from pydantic import BaseModel, Field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -64,11 +64,16 @@ def create_endpoint(
         bucket = create_bucket(session, provider, user, body.name)
         record_audit(session, user_id=user.id, action=BUCKET_CREATED, bucket_name=bucket.name)
         session.commit()
-    except IntegrityError:
+    except IntegrityError as error:
         # The unique constraint decides, not a prior SELECT. Check then
         # insert has a race between the two statements that the constraint
         # does not.
         session.rollback()
+        constraint = getattr(getattr(error.orig, "diag", None), "constraint_name", None)
+        if constraint != "uq_buckets_user_id_name":
+            # Some other violation. Reporting it as a duplicate name would
+            # send the caller after a problem they do not have.
+            raise
         raise ApiError(
             "BUCKET_EXISTS",
             f"A bucket named {body.name!r} already exists.",
@@ -80,14 +85,17 @@ def create_endpoint(
 @router.delete(
     "/{name}",
     response_model=Ok[DeletedData],
-    responses={401: {"model": Err}, 404: {"model": Err}},
+    responses={401: {"model": Err}, 404: {"model": Err}, 422: {"model": Err}},
 )
-def delete_endpoint(name: str, user: CurrentUser, session: Db) -> Ok[DeletedData]:
+def delete_endpoint(
+    name: Annotated[str, Path(pattern=NAME_PATTERN)], user: CurrentUser, session: Db
+) -> Ok[DeletedData]:
     bucket = get_bucket(session, user, name)
     if bucket is None:
-        # 404 even when the bucket exists under another user. A 403 would
-        # confirm the name is taken, which is an existence disclosure the
-        # ADR 002 test plan specifically rules out.
+        # An invalid name cannot name an existing bucket, so rejecting it
+        # discloses nothing. A 403 would confirm the name is taken, which is
+        # an existence disclosure the ADR 002 test plan specifically rules
+        # out.
         raise ApiError("BUCKET_NOT_FOUND", f"No bucket named {name!r}.", status_code=404)
     # SP4 adds the BUCKET_NOT_EMPTY guard here, once there is a secrets
     # table to count. See ADR 002 A18.
