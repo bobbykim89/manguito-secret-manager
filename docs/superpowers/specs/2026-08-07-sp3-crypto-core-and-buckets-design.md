@@ -65,7 +65,7 @@ cannot use that name.
 ```
 api/app/
 ├── crypto/
-│   ├── __init__.py       public surface
+│   ├── __init__.py       package docstring only
 │   ├── keys.py           KeyProvider, EnvKeyProvider, get_key_provider
 │   └── aead.py           build_aad, encrypt, decrypt
 ├── models/
@@ -250,8 +250,19 @@ shipped with an untested branch.
 
 A decryption or unwrap failure means database tampering or a KEK mismatch, not
 a user error. It surfaces through the existing handler as a 500 carrying
-`INTERNAL_ERROR_MESSAGE`, and the log line records the bucket id and never key
-material.
+`INTERNAL_ERROR_MESSAGE`.
+
+As implemented, no module in SP3 logs anything at all, so there is no line
+recording the bucket id. That is deferred to SP4 rather than built here,
+because `unwrap_dek` has no production caller until the secret endpoints
+arrive, so a failure log would have nothing to record. SP4 adds it with the
+first caller that can actually fail.
+
+Bound parameters are kept out of SQLAlchemy's exception strings by
+`hide_parameters=True` on the engine. Without it a failed insert renders every
+bound value into `str(exc)`, binary included and untruncated, and the unhandled
+exception handler logs that at ERROR. In SP3 the value at risk is a wrapped
+DEK; in SP4 it is secret ciphertext.
 
 Configuration failures crash at startup rather than at first use.
 

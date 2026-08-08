@@ -429,3 +429,30 @@ guarantee.
 A non-empty bucket returns `BUCKET_NOT_EMPTY` at 409. The caller deletes its
 secrets first. SP3 reserves the code and SP4 implements the guard, because SP3
 has no secrets table to count.
+
+### A19. What the AAD binding does and does not guarantee
+
+The threat model says an attacker with database write access "cannot relocate a
+ciphertext from a low-value row to a high-value one". SP3's implementation
+review established that this is true but narrower than the phrasing suggests,
+and the difference is worth stating rather than leaving to inference.
+
+**Cannot**, because the AAD binds a wrapped DEK to its bucket's id and a secret
+to its `(bucket_id, key_name)` pair: move a `wrapped_dek` between bucket rows,
+edit a bucket's `id`, forge a `kek_version`, or truncate or corrupt a wrapped
+value. All of these fail closed as `InvalidTag`, or as `UnknownKekVersion` when
+the row names a KEK the deployment does not hold.
+
+**Can**: change a bucket's `user_id` and so reassign its ownership. Nothing
+binds a bucket to its owner, only to its own id.
+
+That is deliberate rather than an oversight. The same attacker can insert a
+`sessions` row for any `user_id` and read everything through the front door, so
+binding the owner into the AAD would buy nothing against this adversary while
+making ownership permanently immutable, since changing it would make every
+secret in the bucket undecryptable.
+
+The honest summary for the README's threat model: the AAD prevents ciphertext
+relocation, not database tampering in general. An attacker with write access to
+Postgres can deny service and can reassign ownership; they cannot read a secret
+value, because the KEK is not in the database.
