@@ -160,8 +160,14 @@ In SP4 it always refuses. In SP5 an API key without the scope receives the
 identical response and one with it proceeds.
 
 `?reveal=false` is accepted and does nothing, since it is the default written
-out. The parameter is declared on the endpoint rather than read loosely from
-the query string, so `?reveal=yes` is a 422 rather than a quiet falsy.
+out. The parameter is declared as a typed boolean rather than read loosely from
+the query string, so an unparseable value like `?reveal=maybe` is a 422 rather
+than a quiet falsy.
+
+Note that Pydantic accepts `yes`, `y`, `on` and `1` as true, so `?reveal=yes`
+refuses at 403 rather than validating. That is the correct outcome: the
+property that matters is that no spelling of the parameter is silently
+ignored.
 
 The gate lives on the **list** endpoint only. A4 scopes reveal to bulk fetch,
 and on the single-key endpoint the parameter would be meaningless, since that
@@ -252,7 +258,8 @@ Real Postgres via testcontainers. Hypothesis for the round trip.
 - The list's exact key set, proving no value and no length reach it
 - `?reveal=true` is refused **even for a bucket that does not exist**, which is
   what proves the ordering
-- `?reveal=yes` is a 422
+- `?reveal=maybe` is a 422, and `?reveal=yes` is a 403 rather than a quiet
+  falsy, since Pydantic parses it as true
 - The emptiness guard refuses; deleting the secrets then the bucket succeeds
 - Each of the four audit actions is written with the right `key_name`
 - A failed audit write denies the read
@@ -271,7 +278,8 @@ Real Postgres via testcontainers. Hypothesis for the round trip.
 6. The list returns key names and timestamps and never a value or its length.
 7. `?reveal=true` returns 403 `REVEAL_NOT_PERMITTED`, including for a bucket
    that does not exist.
-8. `?reveal=yes` returns 422.
+8. `?reveal=maybe` returns 422, and `?reveal=yes` returns 403, since Pydantic
+   parses it as true. No spelling of the parameter is silently ignored.
 9. Deleting a non-empty bucket returns 409 `BUCKET_NOT_EMPTY`; deleting its
    secrets first then succeeds.
 10. Another user's bucket returns 404 on all four secret endpoints.
