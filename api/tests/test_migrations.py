@@ -23,7 +23,7 @@ def test_baseline_migration_applies_and_reverses(postgres_url: str) -> None:
     command.upgrade(config, "head")
     with engine.connect() as connection:
         version = connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-    assert version == "0003"
+    assert version == "0004"
 
     command.downgrade(config, "base")
     with engine.connect() as connection:
@@ -33,14 +33,21 @@ def test_baseline_migration_applies_and_reverses(postgres_url: str) -> None:
 
 
 def test_migrations_create_the_expected_tables(postgres_url: str) -> None:
-    """SP3 adds buckets and audit_log and nothing else."""
+    """SP4 adds secrets and nothing else."""
     config = alembic_config(postgres_url)
     engine = create_db_engine(postgres_url)
 
     command.upgrade(config, "head")
     try:
         tables = set(inspect(engine).get_table_names())
-        assert tables == {"alembic_version", "users", "sessions", "buckets", "audit_log"}
+        assert tables == {
+            "alembic_version",
+            "users",
+            "sessions",
+            "buckets",
+            "audit_log",
+            "secrets",
+        }
     finally:
         command.downgrade(config, "base")
         command.upgrade(config, "head")
