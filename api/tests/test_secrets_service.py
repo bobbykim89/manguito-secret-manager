@@ -5,6 +5,7 @@ from cryptography.exceptions import InvalidTag
 from sqlalchemy.orm import Session
 
 from app.buckets import create_bucket
+from app.crypto.aead import NONCE_BYTES
 from app.crypto.keys import EnvKeyProvider
 from app.models import User
 from app.models.secret import MAX_VALUE_BYTES
@@ -101,15 +102,23 @@ def test_writing_the_same_key_twice_updates_rather_than_duplicates(
 
 
 def test_the_same_value_encrypts_differently_each_time(db_session: Session) -> None:
-    """Proves the nonce is fresh through the real write path."""
+    """Same key name, so the AAD is identical and only the nonce can differ.
+
+    Two different key names would not prove this. In GCM the tag depends on
+    the AAD, so a reused nonce would still yield a different blob and the
+    assertion would pass while proving nothing.
+    """
     user = seed_user(db_session, "svc-nonce")
     bucket = create_bucket(db_session, provider(), user, "nonce")
+    first, _ = put_secret(db_session, provider(), bucket, "SAME", "same")
+    db_session.commit()
+    before = first.ciphertext
 
-    first, _ = put_secret(db_session, provider(), bucket, "A", "same")
-    second, _ = put_secret(db_session, provider(), bucket, "B", "same")
+    second, _ = put_secret(db_session, provider(), bucket, "SAME", "same")
     db_session.commit()
 
-    assert first.ciphertext != second.ciphertext
+    assert second.ciphertext != before
+    assert second.ciphertext[:NONCE_BYTES] != before[:NONCE_BYTES]
 
 
 def test_a_ciphertext_does_not_decrypt_under_another_key_name(db_session: Session) -> None:
@@ -214,4 +223,4 @@ def test_an_unknown_kek_version_is_logged_as_its_own_cause(
         read_secret(provider(), bucket, secret)
 
     assert "99" in caplog.text
-    assert "value" not in caplog.text.replace("KEY", "")
+    assert "value" not in caplog.text
