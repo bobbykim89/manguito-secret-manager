@@ -131,6 +131,7 @@ def get_endpoint(
     user: CurrentUser,
     session: Db,
     provider: Provider,
+    response: Response,
 ) -> Ok[SecretValueData]:
     secret = get_secret(session, bucket, key)
     if secret is None:
@@ -145,21 +146,31 @@ def get_endpoint(
     record_audit(
         session, user_id=user.id, action=SECRET_READ, bucket_name=bucket.name, key_name=key
     )
-    session.commit()
-    return Ok(
-        data=SecretValueData(
-            key_name=secret.key_name,
-            created_at=secret.created_at,
-            updated_at=secret.updated_at,
-            value=value,
-        )
+    # Built before the commit: expire_on_commit would force a refresh SELECT
+    # to read created_at/updated_at afterwards, and a failure on that refresh
+    # would report a 500 for a read that already committed its audit row.
+    data = SecretValueData(
+        key_name=secret.key_name,
+        created_at=secret.created_at,
+        updated_at=secret.updated_at,
+        value=value,
     )
+    session.commit()
+    # The one response in this API that carries a plaintext secret. A21 says
+    # it must not sit behind a cache; this is what says so on the wire.
+    response.headers["Cache-Control"] = "no-store"
+    return Ok(data=data)
 
 
 @router.put(
     "/{key}",
     response_model=Ok[SecretData],
-    responses={401: {"model": Err}, 404: {"model": Err}, 422: {"model": Err}},
+    responses={
+        201: {"model": Ok[SecretData]},
+        401: {"model": Err},
+        404: {"model": Err},
+        422: {"model": Err},
+    },
 )
 def put_endpoint(
     key: KeyName,
@@ -184,9 +195,13 @@ def put_endpoint(
         bucket_name=bucket.name,
         key_name=key,
     )
+    # Built before the commit, for the same reason as get_endpoint: reading
+    # these after expire_on_commit refreshes them in a fresh transaction the
+    # response has no business needing.
+    data = _to_data(secret)
     session.commit()
     response.status_code = 201 if created else 200
-    return Ok(data=_to_data(secret))
+    return Ok(data=data)
 
 
 @router.delete(

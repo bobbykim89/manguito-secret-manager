@@ -63,6 +63,21 @@ def test_replacing_a_key_returns_200_rather_than_201(
     assert client.get("/v1/buckets/replace/secrets/KEY").json()["data"]["value"] == "second"
 
 
+def test_the_single_key_read_carries_a_no_store_directive(
+    client: TestClient, db_session: Session
+) -> None:
+    """ADR 002 A21: the one response carrying a plaintext secret must not
+    sit behind a cache. The list carries no value, so it needs no directive."""
+    with_bucket(client, db_session, "api-cache", "cached")
+    client.put("/v1/buckets/cached/secrets/KEY", json={"value": "v"})
+
+    got = client.get("/v1/buckets/cached/secrets/KEY")
+    listed = client.get("/v1/buckets/cached/secrets")
+
+    assert got.headers.get("cache-control") == "no-store"
+    assert "cache-control" not in listed.headers
+
+
 def test_the_list_returns_metadata_and_never_a_value(
     client: TestClient, db_session: Session
 ) -> None:

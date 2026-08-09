@@ -626,6 +626,15 @@ export interface operations {
                     "application/json": components["schemas"]["Ok_SecretData_"];
                 };
             };
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ok_SecretData_"];
+                };
+            };
             /** @description Unauthorized */
             401: {
                 headers: {
