@@ -9,7 +9,12 @@ from sqlalchemy.orm import Session
 
 from app.audit import BUCKET_CREATED, BUCKET_DELETED, record_audit
 from app.auth.dependencies import CurrentUser
-from app.buckets import bucket_has_secrets, create_bucket, get_bucket, list_buckets_with_counts
+from app.buckets import (
+    bucket_has_secrets,
+    create_bucket,
+    get_bucket_for_update,
+    list_buckets_with_counts,
+)
 from app.crypto.keys import KeyProvider, get_key_provider
 from app.db import get_db
 from app.envelope import ApiError, Err, Ok
@@ -98,7 +103,10 @@ def create_endpoint(
 def delete_endpoint(
     name: Annotated[str, Path(pattern=NAME_PATTERN)], user: CurrentUser, session: Db
 ) -> Ok[DeletedData]:
-    bucket = get_bucket(session, user, name)
+    # Locked rather than get_bucket's plain read: the emptiness check below
+    # and the delete are two statements a concurrent secret write can slip
+    # between without the lock. See app.buckets.get_bucket_for_update.
+    bucket = get_bucket_for_update(session, user, name)
     if bucket is None:
         # An invalid name cannot name an existing bucket, so rejecting it
         # discloses nothing. A 403 would confirm the name is taken, which is

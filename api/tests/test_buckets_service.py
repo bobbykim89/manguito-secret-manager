@@ -1,5 +1,6 @@
 import pytest
 from cryptography.exceptions import InvalidTag
+from sqlalchemy import event
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -7,6 +8,7 @@ from app.buckets import (
     bucket_has_secrets,
     create_bucket,
     get_bucket,
+    get_bucket_for_update,
     list_buckets_with_counts,
     unwrap_dek,
 )
@@ -165,6 +167,27 @@ def test_bucket_has_secrets_reports_emptiness(db_session: Session) -> None:
     db_session.commit()
 
     assert bucket_has_secrets(db_session, bucket) is True
+
+
+def test_the_delete_lookup_locks_the_row(db_session: Session) -> None:
+    """Without the lock, an emptiness check and a delete are two statements a
+    concurrent secret write can slip between."""
+    user = seed_user(db_session, "svc-lock")
+    create_bucket(db_session, provider(), user, "locked")
+    db_session.commit()
+
+    statements: list[str] = []
+
+    def record(conn: object, cursor: object, statement: str, *args: object) -> None:
+        statements.append(statement)
+
+    event.listen(db_session.bind, "before_cursor_execute", record)
+    try:
+        get_bucket_for_update(db_session, user, "locked")
+    finally:
+        event.remove(db_session.bind, "before_cursor_execute", record)
+
+    assert any("FOR UPDATE" in statement for statement in statements)
 
 
 def test_repr_does_not_leak_the_wrapped_dek(db_session: Session) -> None:

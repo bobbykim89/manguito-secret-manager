@@ -52,6 +52,22 @@ def get_bucket(session: Session, user: User, name: str) -> Bucket | None:
     ).one_or_none()
 
 
+def get_bucket_for_update(session: Session, user: User, name: str) -> Bucket | None:
+    """Like get_bucket, but locks the row against concurrent secret writes.
+
+    Deleting a bucket checks that it is empty and then deletes it. Without a
+    lock those are two statements a concurrent write can slip between: the
+    check sees nothing, the insert commits, and ON DELETE CASCADE removes the
+    secret that was just written, with both requests reporting success.
+
+    FOR UPDATE conflicts with the FOR KEY SHARE lock an inserting foreign key
+    takes, so the delete waits for the write rather than racing it.
+    """
+    return session.scalars(
+        select(Bucket).where(Bucket.user_id == user.id, Bucket.name == name).with_for_update()
+    ).one_or_none()
+
+
 def bucket_has_secrets(session: Session, bucket: Bucket) -> bool:
     """Whether the bucket holds anything.
 
