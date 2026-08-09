@@ -35,6 +35,26 @@ Provider = Annotated[KeyProvider, Depends(get_key_provider)]
 KeyName = Annotated[str, Path(pattern=KEY_NAME_PATTERN)]
 
 
+def deny_reveal(reveal: bool = False) -> None:
+    """Refuse bulk reveal on the credential, before any bucket is consulted.
+
+    ADR 002 A4 makes reveal a property of the credential rather than of the
+    endpoint. A session can never carry the scope, so in SP4 this always
+    refuses; SP5's API keys are what will be able to pass it. Refusing here
+    rather than after the lookup keeps the refusal independent of a resource
+    the caller was never entitled to ask about.
+
+    Declared as a typed boolean rather than read from the query string, so a
+    value that is neither true nor false is a 422 rather than a quiet falsy.
+    """
+    if reveal:
+        raise ApiError(
+            "REVEAL_NOT_PERMITTED",
+            "Bulk reveal requires an API key with the reveal scope.",
+            status_code=403,
+        )
+
+
 def resolve_bucket(
     bucket: Annotated[str, Path(pattern=NAME_PATTERN)],
     user: CurrentUser,
@@ -86,7 +106,13 @@ def _to_data(secret: Secret) -> SecretData:
 @router.get(
     "",
     response_model=Ok[list[SecretData]],
-    responses={401: {"model": Err}, 404: {"model": Err}, 422: {"model": Err}},
+    dependencies=[Depends(deny_reveal)],
+    responses={
+        401: {"model": Err},
+        403: {"model": Err},
+        404: {"model": Err},
+        422: {"model": Err},
+    },
 )
 def list_endpoint(bucket: ResolvedBucket, session: Db) -> Ok[list[SecretData]]:
     # Deliberately not audited. Only a read of a value is a read, and

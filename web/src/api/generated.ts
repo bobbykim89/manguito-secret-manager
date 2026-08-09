@@ -63,6 +63,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/buckets/{bucket}/secrets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Endpoint */
+        get: operations["list_endpoint_v1_buckets__bucket__secrets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/buckets/{bucket}/secrets/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Endpoint */
+        get: operations["get_endpoint_v1_buckets__bucket__secrets__key__get"];
+        /** Put Endpoint */
+        put: operations["put_endpoint_v1_buckets__bucket__secrets__key__put"];
+        post?: never;
+        /** Delete Endpoint */
+        delete: operations["delete_endpoint_v1_buckets__bucket__secrets__key__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/buckets/{name}": {
         parameters: {
             query?: never;
@@ -127,6 +163,8 @@ export interface components {
             id: string;
             /** Name */
             name: string;
+            /** Secret Count */
+            secret_count: number;
         };
         /** CreateBucketRequest */
         CreateBucketRequest: {
@@ -230,6 +268,26 @@ export interface components {
              */
             ok: true;
         };
+        /** Ok[SecretData] */
+        Ok_SecretData_: {
+            data: components["schemas"]["SecretData"];
+            /**
+             * Ok
+             * @default true
+             * @constant
+             */
+            ok: true;
+        };
+        /** Ok[SecretValueData] */
+        Ok_SecretValueData_: {
+            data: components["schemas"]["SecretValueData"];
+            /**
+             * Ok
+             * @default true
+             * @constant
+             */
+            ok: true;
+        };
         /** Ok[list[BucketData]] */
         Ok_list_BucketData__: {
             /** Data */
@@ -240,6 +298,60 @@ export interface components {
              * @constant
              */
             ok: true;
+        };
+        /** Ok[list[SecretData]] */
+        Ok_list_SecretData__: {
+            /** Data */
+            data: components["schemas"]["SecretData"][];
+            /**
+             * Ok
+             * @default true
+             * @constant
+             */
+            ok: true;
+        };
+        /** PutSecretRequest */
+        PutSecretRequest: {
+            /** Value */
+            value: string;
+        };
+        /**
+         * SecretData
+         * @description Metadata only.
+         *
+         *     No value and no length: a length narrows the search space for a password
+         *     or a token, and invariant 7 says metadata only.
+         */
+        SecretData: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Key Name */
+            key_name: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** SecretValueData */
+        SecretValueData: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Key Name */
+            key_name: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Value */
+            value: string;
         };
     };
     responses: never;
@@ -379,6 +491,220 @@ export interface operations {
             };
         };
     };
+    list_endpoint_v1_buckets__bucket__secrets_get: {
+        parameters: {
+            query?: {
+                reveal?: boolean;
+            };
+            header?: never;
+            path: {
+                bucket: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ok_list_SecretData__"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Err"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Err"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Err"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Err"];
+                };
+            };
+        };
+    };
+    get_endpoint_v1_buckets__bucket__secrets__key__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+                bucket: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ok_SecretValueData_"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Err"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Err"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Err"];
+                };
+            };
+        };
+    };
+    put_endpoint_v1_buckets__bucket__secrets__key__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+                bucket: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PutSecretRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ok_SecretData_"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Err"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Err"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Err"];
+                };
+            };
+        };
+    };
+    delete_endpoint_v1_buckets__bucket__secrets__key__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+                bucket: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ok_SecretData_"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Err"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Err"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Err"];
+                };
+            };
+        };
+    };
     delete_endpoint_v1_buckets__name__delete: {
         parameters: {
             query?: never;
@@ -410,6 +736,15 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Err"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

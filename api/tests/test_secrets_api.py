@@ -330,3 +330,78 @@ def test_a_corrupted_row_fails_without_leaking_anything(db_session: Session) -> 
     assert "the-real-value" not in response.text
     assert "InvalidTag" not in response.text
     assert "ciphertext" not in response.text
+
+
+def test_reveal_is_refused(client: TestClient, db_session: Session) -> None:
+    with_bucket(client, db_session, "api-reveal", "revealing")
+    client.put("/v1/buckets/revealing/secrets/KEY", json={"value": "v"})
+
+    response = client.get("/v1/buckets/revealing/secrets?reveal=true")
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "REVEAL_NOT_PERMITTED"
+
+
+def test_reveal_is_refused_before_the_bucket_is_looked_up(
+    client: TestClient, db_session: Session
+) -> None:
+    """The ordering test, and the only one that proves it.
+
+    Reveal is a property of the credential, per ADR 002 A4, so the refusal
+    must not depend on a resource the caller was never entitled to ask
+    about. A bucket that does not exist would answer 404 if the lookup ran
+    first.
+    """
+    sign_in(client, db_session, "api-reveal-order")
+
+    response = client.get("/v1/buckets/nosuchbucket/secrets?reveal=true")
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "REVEAL_NOT_PERMITTED"
+
+
+def test_reveal_false_behaves_as_the_default(client: TestClient, db_session: Session) -> None:
+    with_bucket(client, db_session, "api-reveal-false", "revealfalse")
+    client.put("/v1/buckets/revealfalse/secrets/KEY", json={"value": "v"})
+
+    response = client.get("/v1/buckets/revealfalse/secrets?reveal=false")
+
+    assert response.status_code == 200
+    assert set(response.json()["data"][0]) == {"key_name", "created_at", "updated_at"}
+
+
+def test_an_unparseable_reveal_is_a_422(client: TestClient, db_session: Session) -> None:
+    """Declared as a typed boolean rather than read loosely, so a value that
+    is neither true nor false is refused rather than treated as absent."""
+    with_bucket(client, db_session, "api-reveal-bad", "revealbad")
+
+    response = client.get("/v1/buckets/revealbad/secrets?reveal=maybe")
+
+    assert response.status_code == 422
+
+
+def test_a_truthy_spelling_of_reveal_still_refuses(client: TestClient, db_session: Session) -> None:
+    """Pydantic parses yes, y, on and 1 as true.
+
+    The property that matters is that no spelling is silently ignored, so
+    these refuse rather than validate.
+    """
+    with_bucket(client, db_session, "api-reveal-yes", "revealyes")
+
+    assert client.get("/v1/buckets/revealyes/secrets?reveal=yes").status_code == 403
+    assert client.get("/v1/buckets/revealyes/secrets?reveal=1").status_code == 403
+
+
+def test_reveal_is_not_a_parameter_on_the_single_key_endpoint(
+    client: TestClient, db_session: Session
+) -> None:
+    """A4 scopes reveal to bulk fetch. On a single key it would be
+    meaningless, since that endpoint's whole purpose is returning one value
+    to a caller already entitled to it."""
+    with_bucket(client, db_session, "api-reveal-single", "revealsingle")
+    client.put("/v1/buckets/revealsingle/secrets/KEY", json={"value": "v"})
+
+    response = client.get("/v1/buckets/revealsingle/secrets/KEY?reveal=true")
+
+    assert response.status_code == 200
+    assert response.json()["data"]["value"] == "v"
