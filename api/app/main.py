@@ -11,7 +11,7 @@ from app.envelope import (
     unhandled_exception_handler,
     validation_error_handler,
 )
-from app.routers import auth, buckets, health
+from app.routers import auth, buckets, health, secrets
 
 
 def create_app() -> FastAPI:
@@ -40,6 +40,7 @@ def create_app() -> FastAPI:
     application.include_router(health.router)
     application.include_router(auth.router)
     application.include_router(buckets.router)
+    application.include_router(secrets.router)
     return application
 
 

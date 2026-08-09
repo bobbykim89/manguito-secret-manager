@@ -317,3 +317,29 @@ def test_no_key_material_reaches_the_logs(
     assert dek.hex() not in output
     assert base64.b64encode(dek).decode() not in output
     assert bucket.wrapped_dek.hex() not in output
+
+
+def test_deleting_a_non_empty_bucket_is_refused(client: TestClient, db_session: Session) -> None:
+    """The guard SP3 reserved. Losing a bucket's contents to one call is the
+    kind of mistake v1 has no undo for."""
+    sign_in(client, db_session, "api-not-empty")
+    client.post("/v1/buckets", json={"name": "occupied"})
+    client.put("/v1/buckets/occupied/secrets/KEY", json={"value": "v"})
+
+    response = client.delete("/v1/buckets/occupied")
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "BUCKET_NOT_EMPTY"
+    assert client.get("/v1/buckets").json()["data"][0]["name"] == "occupied"
+
+
+def test_emptying_a_bucket_lets_it_be_deleted(client: TestClient, db_session: Session) -> None:
+    sign_in(client, db_session, "api-empty-then-delete")
+    client.post("/v1/buckets", json={"name": "temporary"})
+    client.put("/v1/buckets/temporary/secrets/KEY", json={"value": "v"})
+    client.delete("/v1/buckets/temporary/secrets/KEY")
+
+    response = client.delete("/v1/buckets/temporary")
+
+    assert response.status_code == 200
+    assert client.get("/v1/buckets").json()["data"] == []
