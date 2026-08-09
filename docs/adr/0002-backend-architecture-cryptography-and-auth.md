@@ -510,3 +510,32 @@ turn a case-only rename into a silent overwrite.
 
 The asymmetry with A16 is intentional. Someone reading A16 should not assume it
 generalises to every name in the system.
+
+### A23. SP4 outcomes, and what ciphertext adds to A19's "can" column
+
+SP4 is the first sub-project where a secret value exists, so A19's account of what
+database write access buys needs one addition.
+
+**Also can: roll a secret back.** An attacker with write access can restore an
+earlier ciphertext blob for the same `(bucket_id, key_name)` and it will decrypt
+cleanly, because nothing binds a blob to a point in time. A15 removed the per-row
+version deliberately, and `updated_at` uses SQLAlchemy's `onupdate`, which fires
+only for writes issued through the ORM, so a direct `UPDATE` leaves the timestamp
+untouched. A retired credential can therefore be reinstated with no metadata
+trace.
+
+That is inherent to the no-versioning decision A5 made for v1 rather than a
+defect introduced here. Secret versioning is already in the v2 backlog, and it is
+the feature that would close this.
+
+**Fixed by implementation:** the single-key read sets `Cache-Control: no-store`.
+A21 says that response must never sit behind a cache, and until SP4's final
+review nothing on the wire said so.
+
+**Fixed by implementation:** deleting a bucket locks its row with `FOR UPDATE`
+before checking that it is empty. Without the lock the check and the delete are
+two statements a concurrent secret write can slip between: the check sees
+nothing, the insert commits, and `ON DELETE CASCADE` removes the secret that was
+just written, with both requests reporting success. A18 makes bucket deletion
+hard precisely because it is cryptographic shredding with no undo, so that was
+the one path where its guard could be stepped over.
