@@ -208,14 +208,15 @@ def test_a_value_at_the_limit_is_accepted_and_one_byte_over_is_not(
     client: TestClient, db_session: Session
 ) -> None:
     with_bucket(client, db_session, "api-size", "sized")
+    value = "a" * MAX_VALUE_BYTES
 
-    at_limit = client.put(
-        "/v1/buckets/sized/secrets/AT_LIMIT", json={"value": "a" * MAX_VALUE_BYTES}
-    )
+    at_limit = client.put("/v1/buckets/sized/secrets/AT_LIMIT", json={"value": value})
     over = client.put("/v1/buckets/sized/secrets/OVER", json={"value": "a" * (MAX_VALUE_BYTES + 1)})
+    got = client.get("/v1/buckets/sized/secrets/AT_LIMIT")
 
     assert at_limit.status_code == 201
     assert over.status_code == 422
+    assert got.json()["data"]["value"] == value
 
 
 def test_the_limit_is_measured_in_bytes_through_http(
@@ -317,6 +318,36 @@ def test_a_read_whose_audit_write_fails_serves_no_value(
     assert "the-real-value" not in response.text
 
 
+def test_a_racing_concurrent_create_surfaces_as_an_opaque_500(
+    db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Pins today's behaviour rather than changing it.
+
+    put_secret reads before writing, so two concurrent creates of the same
+    new key race and the loser's IntegrityError reaches the unhandled
+    handler. The unique constraint still guarantees one row; this only
+    proves the failure stays an opaque 500 and never leaks a value.
+    """
+    from sqlalchemy.exc import IntegrityError
+
+    from app.main import app
+
+    def explode(*args: object, **kwargs: object) -> None:
+        raise IntegrityError("INSERT ...", {}, Exception("duplicate"))
+
+    with TestClient(app, raise_server_exceptions=False) as failing_client:
+        with_bucket(failing_client, db_session, "api-create-race", "racing")
+        monkeypatch.setattr("app.routers.secrets.put_secret", explode)
+
+        response = failing_client.put(
+            "/v1/buckets/racing/secrets/KEY", json={"value": "the-losing-value"}
+        )
+
+    assert response.status_code == 500
+    assert response.json()["error"]["code"] == "INTERNAL_ERROR"
+    assert "the-losing-value" not in response.text
+
+
 def test_a_corrupted_row_fails_without_leaking_anything(db_session: Session) -> None:
     """A tampered ciphertext is a 500 carrying nothing.
 
@@ -405,6 +436,22 @@ def test_a_truthy_spelling_of_reveal_still_refuses(client: TestClient, db_sessio
 
     assert client.get("/v1/buckets/revealyes/secrets?reveal=yes").status_code == 403
     assert client.get("/v1/buckets/revealyes/secrets?reveal=1").status_code == 403
+
+
+def test_reveal_is_refused_before_authentication_is_checked(client: TestClient) -> None:
+    """Pins today's ordering, which is expected to change.
+
+    The route-level deny_reveal dependency resolves before CurrentUser, so an
+    unauthenticated caller gets 403 rather than 401. That is correct for now,
+    because no credential can carry the reveal scope yet. Once API keys can,
+    the gate will have to inspect the credential and will therefore need
+    authentication to resolve first, turning this into a 401. This test
+    exists so that change shows up as a deliberate diff.
+    """
+    response = client.get("/v1/buckets/nosuchbucket/secrets?reveal=true")
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "REVEAL_NOT_PERMITTED"
 
 
 def test_reveal_is_not_a_parameter_on_the_single_key_endpoint(

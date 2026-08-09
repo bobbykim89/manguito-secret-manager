@@ -212,7 +212,7 @@ def test_an_unknown_kek_version_is_logged_as_its_own_cause(
 
     user = seed_user(db_session, "svc-unknown-kek")
     bucket = create_bucket(db_session, provider(), user, "unknownkek")
-    secret, _ = put_secret(db_session, provider(), bucket, "KEY", "value")
+    secret, _ = put_secret(db_session, provider(), bucket, "KEY", "the-real-value")
     db_session.commit()
     bucket.kek_version = 99
 
@@ -223,4 +223,4 @@ def test_an_unknown_kek_version_is_logged_as_its_own_cause(
         read_secret(provider(), bucket, secret)
 
     assert "99" in caplog.text
-    assert "value" not in caplog.text
+    assert "the-real-value" not in caplog.text
