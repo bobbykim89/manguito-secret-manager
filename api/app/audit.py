@@ -8,6 +8,10 @@ from app.models import AuditEntry
 
 BUCKET_CREATED = "bucket.created"
 BUCKET_DELETED = "bucket.deleted"
+SECRET_CREATED = "secret.created"
+SECRET_UPDATED = "secret.updated"
+SECRET_READ = "secret.read"
+SECRET_DELETED = "secret.deleted"
 
 
 def record_audit(

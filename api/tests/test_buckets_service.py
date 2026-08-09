@@ -3,9 +3,16 @@ from cryptography.exceptions import InvalidTag
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.buckets import create_bucket, get_bucket, list_buckets, unwrap_dek
+from app.buckets import (
+    bucket_has_secrets,
+    create_bucket,
+    get_bucket,
+    list_buckets_with_counts,
+    unwrap_dek,
+)
 from app.crypto.keys import DEK_BYTES, EnvKeyProvider
 from app.models import User
+from app.secrets_service import put_secret
 
 KEK_1 = bytes(range(32))
 KEK_2 = bytes(range(32, 64))
@@ -107,7 +114,9 @@ def test_get_bucket_is_scoped_to_its_owner(db_session: Session) -> None:
     assert get_bucket(db_session, theirs, "private") is not None
 
 
-def test_list_returns_only_your_buckets_in_name_order(db_session: Session) -> None:
+def test_list_with_counts_returns_only_your_buckets_in_name_order(
+    db_session: Session,
+) -> None:
     mine = seed_user(db_session, "svc-list-mine")
     theirs = seed_user(db_session, "svc-list-theirs")
     create_bucket(db_session, provider(), mine, "zulu")
@@ -115,7 +124,47 @@ def test_list_returns_only_your_buckets_in_name_order(db_session: Session) -> No
     create_bucket(db_session, provider(), theirs, "hidden")
     db_session.commit()
 
-    assert [bucket.name for bucket in list_buckets(db_session, mine)] == ["alpha", "zulu"]
+    rows = list_buckets_with_counts(db_session, mine)
+
+    assert [bucket.name for bucket, _ in rows] == ["alpha", "zulu"]
+
+
+def test_an_empty_bucket_counts_zero_rather_than_disappearing(db_session: Session) -> None:
+    """An inner join would drop it entirely, which is the classic version of this bug."""
+    user = seed_user(db_session, "svc-count-empty")
+    bucket = create_bucket(db_session, provider(), user, "empty")
+    db_session.commit()
+
+    rows = list_buckets_with_counts(db_session, user)
+
+    assert [(b.name, count) for b, count in rows] == [(bucket.name, 0)]
+
+
+def test_counts_are_per_bucket_and_not_shared(db_session: Session) -> None:
+    user = seed_user(db_session, "svc-count-split")
+    one = create_bucket(db_session, provider(), user, "aone")
+    two = create_bucket(db_session, provider(), user, "btwo")
+    put_secret(db_session, provider(), one, "A", "a")
+    put_secret(db_session, provider(), one, "B", "b")
+    put_secret(db_session, provider(), two, "C", "c")
+    db_session.commit()
+
+    rows = list_buckets_with_counts(db_session, user)
+
+    assert [(b.name, count) for b, count in rows] == [("aone", 2), ("btwo", 1)]
+
+
+def test_bucket_has_secrets_reports_emptiness(db_session: Session) -> None:
+    user = seed_user(db_session, "svc-has-secrets")
+    bucket = create_bucket(db_session, provider(), user, "hassecrets")
+    db_session.commit()
+
+    assert bucket_has_secrets(db_session, bucket) is False
+
+    put_secret(db_session, provider(), bucket, "KEY", "value")
+    db_session.commit()
+
+    assert bucket_has_secrets(db_session, bucket) is True
 
 
 def test_repr_does_not_leak_the_wrapped_dek(db_session: Session) -> None:

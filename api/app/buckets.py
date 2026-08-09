@@ -2,11 +2,11 @@
 
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import exists, func, select
 from sqlalchemy.orm import Session
 
 from app.crypto.keys import KeyProvider, generate_dek, wrap_aad
-from app.models import Bucket, User
+from app.models import Bucket, Secret, User
 
 
 def create_bucket(session: Session, provider: KeyProvider, user: User, name: str) -> Bucket:
@@ -52,7 +52,28 @@ def get_bucket(session: Session, user: User, name: str) -> Bucket | None:
     ).one_or_none()
 
 
-def list_buckets(session: Session, user: User) -> list[Bucket]:
-    return list(
-        session.scalars(select(Bucket).where(Bucket.user_id == user.id).order_by(Bucket.name))
-    )
+def bucket_has_secrets(session: Session, bucket: Bucket) -> bool:
+    """Whether the bucket holds anything.
+
+    EXISTS rather than COUNT, since only whether it is zero matters and
+    counting a large bucket to learn that would be wasted work.
+    """
+    return bool(session.scalar(select(exists().where(Secret.bucket_id == bucket.id))))
+
+
+def list_buckets_with_counts(session: Session, user: User) -> list[tuple[Bucket, int]]:
+    """Every bucket the user owns, each with how many secrets it holds.
+
+    One grouped query rather than a count per bucket. The join is an outer
+    join so an empty bucket counts zero rather than vanishing from the list,
+    and the count is over Secret.id rather than * so an empty bucket's null
+    row counts as none instead of one.
+    """
+    rows = session.execute(
+        select(Bucket, func.count(Secret.id))
+        .outerjoin(Secret, Secret.bucket_id == Bucket.id)
+        .where(Bucket.user_id == user.id)
+        .group_by(Bucket.id)
+        .order_by(Bucket.name)
+    ).all()
+    return [(bucket, count) for bucket, count in rows]

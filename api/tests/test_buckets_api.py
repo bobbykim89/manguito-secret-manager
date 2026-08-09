@@ -12,6 +12,7 @@ from app.auth.sessions import create_session
 from app.buckets import unwrap_dek
 from app.crypto.keys import DEK_BYTES, get_key_provider
 from app.models import AuditEntry, Bucket, User
+from app.secrets_service import put_secret
 
 
 def sign_in(client: TestClient, session: Session, sub: str) -> User:
@@ -53,7 +54,37 @@ def test_create_never_returns_key_material(client: TestClient, db_session: Sessi
 
     body = client.post("/v1/buckets", json={"name": "opaque"}).json()
 
-    assert set(body["data"]) == {"id", "name", "created_at"}
+    assert set(body["data"]) == {"id", "name", "created_at", "secret_count"}
+
+
+def test_a_new_bucket_reports_no_secrets(client: TestClient, db_session: Session) -> None:
+    sign_in(client, db_session, "api-count-new")
+
+    body = client.post("/v1/buckets", json={"name": "fresh"}).json()
+
+    assert body["data"]["secret_count"] == 0
+
+
+def test_the_list_reports_each_buckets_count(client: TestClient, db_session: Session) -> None:
+    # Seeded through put_secret rather than a PUT request: the secret HTTP
+    # endpoints do not exist until SP4 Task 4, so this task reaches the same
+    # state through the service layer that already exists.
+    user = sign_in(client, db_session, "api-count-list")
+    client.post("/v1/buckets", json={"name": "aloaded"})
+    client.post("/v1/buckets", json={"name": "bempty"})
+    loaded = db_session.scalars(
+        select(Bucket).where(Bucket.user_id == user.id, Bucket.name == "aloaded")
+    ).one()
+    put_secret(db_session, get_key_provider(), loaded, "ONE", "1")
+    put_secret(db_session, get_key_provider(), loaded, "TWO", "2")
+    db_session.commit()
+
+    body = client.get("/v1/buckets").json()
+
+    assert [(item["name"], item["secret_count"]) for item in body["data"]] == [
+        ("aloaded", 2),
+        ("bempty", 0),
+    ]
 
 
 def test_a_duplicate_name_conflicts(client: TestClient, db_session: Session) -> None:
