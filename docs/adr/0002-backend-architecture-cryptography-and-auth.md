@@ -539,3 +539,59 @@ nothing, the insert commits, and `ON DELETE CASCADE` removes the secret that was
 just written, with both requests reporting success. A18 makes bucket deletion
 hard precisely because it is cryptographic shredding with no undo, so that was
 the one path where its guard could be stepped over.
+
+---
+
+## Amendments, 2026-08-10 (SP5 brainstorming)
+
+### A24. The prefix is `msm_`, and the format is fixed
+
+A6 rejected `sk_live_` because it collides with Stripe's convention and implies
+an `sk_test_` variant that will never exist, and A8 moved the replacement to
+SP5. The prefix is `msm_`, matching the `msm_session` and `msm_oauth` cookies
+this project already sets.
+
+**Amended:** a key is `msm_<8 char lookup id>_<43 char base64url secret>`. The
+lookup id is unique and indexed so verification is one query rather than a scan
+that hashes every candidate; it is not secret and carries no entropy claim. The
+secret is 32 random bytes.
+
+The stored hash is SHA-256 of the **whole token**, not of the secret segment
+alone, so a token pairing one key's lookup id with another key's secret cannot
+verify. Comparison uses `compare_digest` on encoded bytes, because
+`compare_digest` raises `TypeError` on a `str` containing non-ASCII, which in
+SP2 escaped a failure path entirely and produced a 500 with a live credential
+still set.
+
+### A25. API keys reach the secret endpoints only
+
+Buckets and key management require a session.
+
+Two operations in this system are unrecoverable. Deleting a bucket destroys its
+data key, which is cryptographic shredding with no undo and no versioning to
+fall back on. Issuing a key creates a credential that outlives the one that
+made it. A leaked key can reach neither.
+
+**Amended:** the four secret endpoints accept a session or a key. Everything
+else accepts a session only.
+
+This is enforced structurally rather than by a check. The bucket and key
+endpoints depend on a session-only resolver that never reads the
+`Authorization` header, so a key presented to them is not rejected by a rule
+someone could forget to write into a future endpoint: it is never read at all.
+
+### A26. A bucket outside a key's scope returns 404
+
+The same answer an unowned bucket gives, so a leaked key probing bucket names
+learns nothing, which is the entire point of scoping it.
+
+A denied **write** is 403 rather than 404, because by that point the caller has
+already proved it may see the bucket, so refusing tells it nothing new.
+
+**Amended:** out of scope is 404 `BUCKET_NOT_FOUND`; denied write is 403
+`WRITE_NOT_PERMITTED`; denied reveal is 403 `REVEAL_NOT_PERMITTED`.
+
+The debugging cost is accepted and known: a mis-scoped key looks like a missing
+bucket. The message is identical to the unowned case so there is nothing to
+infer from the difference, and the dashboard that issued the key shows its
+scopes.
