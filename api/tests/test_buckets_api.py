@@ -12,6 +12,7 @@ from app.auth.sessions import create_session
 from app.buckets import unwrap_dek
 from app.crypto.keys import DEK_BYTES, get_key_provider
 from app.models import AuditEntry, Bucket, User
+from app.secrets_service import put_secret
 
 
 def sign_in(client: TestClient, session: Session, sub: str) -> User:
@@ -53,7 +54,37 @@ def test_create_never_returns_key_material(client: TestClient, db_session: Sessi
 
     body = client.post("/v1/buckets", json={"name": "opaque"}).json()
 
-    assert set(body["data"]) == {"id", "name", "created_at"}
+    assert set(body["data"]) == {"id", "name", "created_at", "secret_count"}
+
+
+def test_a_new_bucket_reports_no_secrets(client: TestClient, db_session: Session) -> None:
+    sign_in(client, db_session, "api-count-new")
+
+    body = client.post("/v1/buckets", json={"name": "fresh"}).json()
+
+    assert body["data"]["secret_count"] == 0
+
+
+def test_the_list_reports_each_buckets_count(client: TestClient, db_session: Session) -> None:
+    # Seeded through put_secret rather than a PUT request: the secret HTTP
+    # endpoints do not exist until SP4 Task 4, so this task reaches the same
+    # state through the service layer that already exists.
+    user = sign_in(client, db_session, "api-count-list")
+    client.post("/v1/buckets", json={"name": "aloaded"})
+    client.post("/v1/buckets", json={"name": "bempty"})
+    loaded = db_session.scalars(
+        select(Bucket).where(Bucket.user_id == user.id, Bucket.name == "aloaded")
+    ).one()
+    put_secret(db_session, get_key_provider(), loaded, "ONE", "1")
+    put_secret(db_session, get_key_provider(), loaded, "TWO", "2")
+    db_session.commit()
+
+    body = client.get("/v1/buckets").json()
+
+    assert [(item["name"], item["secret_count"]) for item in body["data"]] == [
+        ("aloaded", 2),
+        ("bempty", 0),
+    ]
 
 
 def test_a_duplicate_name_conflicts(client: TestClient, db_session: Session) -> None:
@@ -286,3 +317,29 @@ def test_no_key_material_reaches_the_logs(
     assert dek.hex() not in output
     assert base64.b64encode(dek).decode() not in output
     assert bucket.wrapped_dek.hex() not in output
+
+
+def test_deleting_a_non_empty_bucket_is_refused(client: TestClient, db_session: Session) -> None:
+    """The guard SP3 reserved. Losing a bucket's contents to one call is the
+    kind of mistake v1 has no undo for."""
+    sign_in(client, db_session, "api-not-empty")
+    client.post("/v1/buckets", json={"name": "occupied"})
+    client.put("/v1/buckets/occupied/secrets/KEY", json={"value": "v"})
+
+    response = client.delete("/v1/buckets/occupied")
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "BUCKET_NOT_EMPTY"
+    assert client.get("/v1/buckets").json()["data"][0]["name"] == "occupied"
+
+
+def test_emptying_a_bucket_lets_it_be_deleted(client: TestClient, db_session: Session) -> None:
+    sign_in(client, db_session, "api-empty-then-delete")
+    client.post("/v1/buckets", json={"name": "temporary"})
+    client.put("/v1/buckets/temporary/secrets/KEY", json={"value": "v"})
+    client.delete("/v1/buckets/temporary/secrets/KEY")
+
+    response = client.delete("/v1/buckets/temporary")
+
+    assert response.status_code == 200
+    assert client.get("/v1/buckets").json()["data"] == []

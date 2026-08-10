@@ -9,7 +9,12 @@ from sqlalchemy.orm import Session
 
 from app.audit import BUCKET_CREATED, BUCKET_DELETED, record_audit
 from app.auth.dependencies import CurrentUser
-from app.buckets import create_bucket, get_bucket, list_buckets
+from app.buckets import (
+    bucket_has_secrets,
+    create_bucket,
+    get_bucket_for_update,
+    list_buckets_with_counts,
+)
 from app.crypto.keys import KeyProvider, get_key_provider
 from app.db import get_db
 from app.envelope import ApiError, Err, Ok
@@ -32,6 +37,7 @@ class BucketData(BaseModel):
     id: uuid.UUID
     name: str
     created_at: datetime
+    secret_count: int
 
 
 class CreateBucketRequest(BaseModel):
@@ -42,13 +48,20 @@ class DeletedData(BaseModel):
     deleted: bool
 
 
-def _to_data(bucket: Bucket) -> BucketData:
-    return BucketData(id=bucket.id, name=bucket.name, created_at=bucket.created_at)
+def _to_data(bucket: Bucket, secret_count: int) -> BucketData:
+    return BucketData(
+        id=bucket.id,
+        name=bucket.name,
+        created_at=bucket.created_at,
+        secret_count=secret_count,
+    )
 
 
 @router.get("", response_model=Ok[list[BucketData]], responses={401: {"model": Err}})
 def list_endpoint(user: CurrentUser, session: Db) -> Ok[list[BucketData]]:
-    return Ok(data=[_to_data(bucket) for bucket in list_buckets(session, user)])
+    return Ok(
+        data=[_to_data(bucket, count) for bucket, count in list_buckets_with_counts(session, user)]
+    )
 
 
 @router.post(
@@ -79,26 +92,33 @@ def create_endpoint(
             f"A bucket named {body.name!r} already exists.",
             status_code=409,
         ) from None
-    return Ok(data=_to_data(bucket))
+    return Ok(data=_to_data(bucket, 0))
 
 
 @router.delete(
     "/{name}",
     response_model=Ok[DeletedData],
-    responses={401: {"model": Err}, 404: {"model": Err}, 422: {"model": Err}},
+    responses={401: {"model": Err}, 404: {"model": Err}, 409: {"model": Err}, 422: {"model": Err}},
 )
 def delete_endpoint(
     name: Annotated[str, Path(pattern=NAME_PATTERN)], user: CurrentUser, session: Db
 ) -> Ok[DeletedData]:
-    bucket = get_bucket(session, user, name)
+    # Locked rather than get_bucket's plain read: the emptiness check below
+    # and the delete are two statements a concurrent secret write can slip
+    # between without the lock. See app.buckets.get_bucket_for_update.
+    bucket = get_bucket_for_update(session, user, name)
     if bucket is None:
         # An invalid name cannot name an existing bucket, so rejecting it
         # discloses nothing. A 403 would confirm the name is taken, which is
         # an existence disclosure the ADR 002 test plan specifically rules
         # out.
         raise ApiError("BUCKET_NOT_FOUND", f"No bucket named {name!r}.", status_code=404)
-    # SP4 adds the BUCKET_NOT_EMPTY guard here, once there is a secrets
-    # table to count. See ADR 002 A18.
+    if bucket_has_secrets(session, bucket):
+        raise ApiError(
+            "BUCKET_NOT_EMPTY",
+            f"Bucket {name!r} still holds secrets. Delete them first.",
+            status_code=409,
+        )
     session.delete(bucket)
     record_audit(session, user_id=user.id, action=BUCKET_DELETED, bucket_name=name)
     session.commit()

@@ -456,3 +456,86 @@ The honest summary for the README's threat model: the AAD prevents ciphertext
 relocation, not database tampering in general. An attacker with write access to
 Postgres can deny service and can reassign ownership; they cannot read a secret
 value, because the KEK is not in the database.
+
+---
+
+## Amendments, 2026-08-08 (SP4 brainstorming)
+
+### A20. A secret row stores one authenticated blob
+
+The encryption design says to store nonce, ciphertext, auth tag and key version
+alongside each secret. A15 already removed the key version. The remaining three
+are not stored separately either.
+
+`encrypt` returns them as a single `nonce || ciphertext || tag` value and
+`decrypt` expects exactly that layout, so storing them in three columns would
+mean disassembling the cipher's own output on write and reassembling it on
+read, with a chance of getting the offsets wrong at both ends.
+
+**Amended:** a single `ciphertext` column holds all three, documented as such.
+
+### A21. Reads are audited, and an unauditable read fails
+
+The audit table is listed under the API surface without saying which operations
+produce entries.
+
+**Amended:** reads produce entries alongside writes and deletes. "Who read this
+secret and when" is the question the log most exists to answer, and a leaked
+credential's activity leaving no record is the first gap felt after an incident.
+
+The entry shares the read's transaction, following the rule A17 established, so
+a read that cannot be audited is refused rather than silently served. This
+couples read availability to the audit table, which nothing else in the system
+does. That is deliberate: a manager that silently serves unlogged reads has lost
+what the log is for, and a refusal is visible where a missing row is not.
+
+The consequence for callers is that `GET` on a secret is not safe in the HTTP
+sense. It must never sit behind a cache or a retry that assumes otherwise.
+
+### A22. Key names deliberately do not follow A16
+
+A16 fixed bucket names as lowercase only, so a name can never need URL escaping
+and can never look like a path segment.
+
+Key names do not inherit that rule. They are
+`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$` and case-sensitive, because the use case is
+environment variables and this ADR's own worked example is `DATABASE_URL`, which
+A16's pattern rejects outright.
+
+Case sensitivity mirrors how environment variables behave. It costs the
+possibility of `DATABASE_URL` and `database_url` coexisting in one bucket, so a
+typo creates a silent second secret rather than an error. Folding case was
+rejected because it would make the stored name differ from the lookup key and
+turn a case-only rename into a silent overwrite.
+
+The asymmetry with A16 is intentional. Someone reading A16 should not assume it
+generalises to every name in the system.
+
+### A23. SP4 outcomes, and what ciphertext adds to A19's "can" column
+
+SP4 is the first sub-project where a secret value exists, so A19's account of what
+database write access buys needs one addition.
+
+**Also can: roll a secret back.** An attacker with write access can restore an
+earlier ciphertext blob for the same `(bucket_id, key_name)` and it will decrypt
+cleanly, because nothing binds a blob to a point in time. A15 removed the per-row
+version deliberately, and `updated_at` uses SQLAlchemy's `onupdate`, which fires
+only for writes issued through the ORM, so a direct `UPDATE` leaves the timestamp
+untouched. A retired credential can therefore be reinstated with no metadata
+trace.
+
+That is inherent to the no-versioning decision A5 made for v1 rather than a
+defect introduced here. Secret versioning is already in the v2 backlog, and it is
+the feature that would close this.
+
+**Fixed by implementation:** the single-key read sets `Cache-Control: no-store`.
+A21 says that response must never sit behind a cache, and until SP4's final
+review nothing on the wire said so.
+
+**Fixed by implementation:** deleting a bucket locks its row with `FOR UPDATE`
+before checking that it is empty. Without the lock the check and the delete are
+two statements a concurrent secret write can slip between: the check sees
+nothing, the insert commits, and `ON DELETE CASCADE` removes the secret that was
+just written, with both requests reporting success. A18 makes bucket deletion
+hard precisely because it is cryptographic shredding with no undo, so that was
+the one path where its guard could be stepped over.

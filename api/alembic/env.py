@@ -10,7 +10,12 @@ from app.db import Base
 config = context.config
 
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # disable_existing_loggers defaults to True, which silently disables every
+    # app.* logger already instantiated in this process. In the test suite
+    # migrations run inside the same process as the app, after its modules
+    # (and their module level loggers) are already imported, so the default
+    # would leave application logging dead for the rest of the run.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
 
