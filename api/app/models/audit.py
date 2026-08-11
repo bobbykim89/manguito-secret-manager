@@ -33,8 +33,13 @@ class AuditEntry(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    # No foreign key until SP5 creates the api_keys table.
-    api_key_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+    # SET NULL rather than CASCADE: an entry must outlive the key it names,
+    # for the same reason bucket_name is text. See ADR 002 A17.
+    api_key_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("api_keys.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     action: Mapped[str] = mapped_column(Text, nullable=False)
     bucket_name: Mapped[str | None] = mapped_column(Text, nullable=True)
     key_name: Mapped[str | None] = mapped_column(Text, nullable=True)
