@@ -1,6 +1,7 @@
 import { Navigate, useSearchParams } from "react-router";
 
 import { apiUrl } from "../../api/client";
+import { Alert } from "../../components/Alert";
 import { messageForErrorCode } from "./errorMessages";
 import { useSession } from "./useSession";
 
@@ -19,9 +20,9 @@ export function LoginPage() {
       <p className="mt-2 text-slate-600">Sign in to manage your secrets.</p>
 
       {message !== null && (
-        <p role="alert" className="mt-4 rounded border border-amber-300 bg-amber-50 p-3 text-sm">
-          {message}
-        </p>
+        <div className="mt-4">
+          <Alert tone="warning">{message}</Alert>
+        </div>
       )}
 
       {/*

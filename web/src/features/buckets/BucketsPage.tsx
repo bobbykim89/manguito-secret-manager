@@ -1,3 +1,5 @@
+import { Alert } from "../../components/Alert";
+
 import { BucketRow } from "./BucketRow";
 import { CreateBucketForm } from "./CreateBucketForm";
 import { useBuckets } from "./useBuckets";
@@ -18,13 +20,13 @@ export function BucketsPage() {
       )}
 
       {buckets.isError && (
-        <p role="alert" className="rounded border border-red-300 bg-red-50 p-3 text-sm">
+        <Alert>
           {/* A cached list survives a transient failure the same way useSession's
               cached user does: refetchOnWindowFocus makes a dropped request
               routine, and replacing a working list with an error over one
               flaky refetch would be a worse experience than showing both. */}
           Could not refresh your buckets. {buckets.error.message}
-        </p>
+        </Alert>
       )}
 
       {buckets.data &&

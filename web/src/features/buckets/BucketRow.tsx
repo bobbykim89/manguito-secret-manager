@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import { Alert } from "../../components/Alert";
+
 import { useDeleteBucket, type Bucket } from "./useBuckets";
 
 /**
@@ -65,11 +67,7 @@ export function BucketRow({ bucket }: { bucket: Bucket }) {
         )}
       </div>
 
-      {remove.isError && (
-        <p role="alert" className="text-sm text-red-700">
-          {remove.error.message}
-        </p>
-      )}
+      {remove.isError && <Alert variant="inline">{remove.error.message}</Alert>}
     </li>
   );
 }
