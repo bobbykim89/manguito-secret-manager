@@ -23,14 +23,21 @@ def issue(
     *,
     can_write: bool = False,
     can_reveal: bool = False,
-) -> str:
+) -> tuple[str, str]:
+    """Return the token and the created key's id.
+
+    The id matters because the shared database is never truncated, so any
+    assertion about a key has to name the one it issued rather than
+    whichever row happens to be newest.
+    """
     body = {
         "name": "ci",
         "buckets": buckets,
         "can_write": can_write,
         "can_reveal": can_reveal,
     }
-    return str(client.post("/v1/keys", json=body).json()["data"]["token"])
+    data = client.post("/v1/keys", json=body).json()["data"]
+    return str(data["token"]), str(data["id"])
 
 
 def bearer(token: str) -> dict[str, str]:
@@ -47,7 +54,7 @@ def setup_account(client: TestClient, session: Session, sub: str, buckets: list[
 
 def test_a_key_reads_a_secret_in_scope(client: TestClient, db_session: Session) -> None:
     setup_account(client, db_session, "authz-read", ["inscope"])
-    token = issue(client, ["inscope"])
+    token, _ = issue(client, ["inscope"])
     client.cookies.clear()
 
     response = client.get("/v1/buckets/inscope/secrets/KEY", headers=bearer(token))
@@ -60,7 +67,7 @@ def test_a_bucket_outside_the_scope_is_a_404(client: TestClient, db_session: Ses
     """Not a 403. A leaked key probing bucket names must learn nothing,
     which is the entire point of scoping it. See ADR 002 A26."""
     setup_account(client, db_session, "authz-scope", ["allowed", "denied"])
-    token = issue(client, ["allowed"])
+    token, _ = issue(client, ["allowed"])
     client.cookies.clear()
 
     response = client.get("/v1/buckets/denied/secrets/KEY", headers=bearer(token))
@@ -74,7 +81,7 @@ def test_an_out_of_scope_bucket_answers_exactly_like_a_missing_one(
 ) -> None:
     """Byte identical, so there is nothing to infer from the difference."""
     setup_account(client, db_session, "authz-identical", ["allowed2", "denied2"])
-    token = issue(client, ["allowed2"])
+    token, _ = issue(client, ["allowed2"])
     client.cookies.clear()
 
     out_of_scope = client.get("/v1/buckets/denied2/secrets/KEY", headers=bearer(token))
@@ -102,7 +109,7 @@ def test_a_key_without_write_is_refused(
     """403 rather than 404, because the caller has already proved it may see
     the bucket, so refusing tells it nothing new."""
     setup_account(client, db_session, f"authz-nowrite-{label}", ["nowrite"])
-    token = issue(client, ["nowrite"], can_write=False)
+    token, _ = issue(client, ["nowrite"], can_write=False)
     client.cookies.clear()
 
     response = client.request(method, path, json=body, headers=bearer(token))
@@ -113,7 +120,7 @@ def test_a_key_without_write_is_refused(
 
 def test_a_key_with_write_may_write(client: TestClient, db_session: Session) -> None:
     setup_account(client, db_session, "authz-write", ["writing"])
-    token = issue(client, ["writing"], can_write=True)
+    token, _ = issue(client, ["writing"], can_write=True)
     client.cookies.clear()
 
     created = client.put(
@@ -127,7 +134,7 @@ def test_a_key_with_write_may_write(client: TestClient, db_session: Session) -> 
 
 def test_a_key_may_list_metadata_in_scope(client: TestClient, db_session: Session) -> None:
     setup_account(client, db_session, "authz-list", ["listing"])
-    token = issue(client, ["listing"])
+    token, _ = issue(client, ["listing"])
     client.cookies.clear()
 
     response = client.get("/v1/buckets/listing/secrets", headers=bearer(token))
@@ -153,7 +160,7 @@ def test_a_revoked_key_stops_working(client: TestClient, db_session: Session) ->
 def test_a_key_cannot_reach_the_bucket_endpoints(client: TestClient, db_session: Session) -> None:
     """The boundary is structural: those endpoints never read the header."""
     setup_account(client, db_session, "authz-buckets", ["bucketboundary"])
-    token = issue(client, ["bucketboundary"])
+    token, _ = issue(client, ["bucketboundary"])
     client.cookies.clear()
 
     assert client.get("/v1/buckets", headers=bearer(token)).status_code == 401
@@ -196,18 +203,18 @@ def test_a_failed_request_still_records_the_key_as_used(
     A request that authenticates and then 404s is exactly the shape of a
     leaked key being probed, and it must leave a trace.
     """
-    from sqlalchemy import select
+    import uuid
 
     from app.models import ApiKey
 
     setup_account(client, db_session, "authz-touch-fail", ["touchfail"])
-    token = issue(client, ["touchfail"])
+    token, key_id = issue(client, ["touchfail"])
     client.cookies.clear()
 
     response = client.get("/v1/buckets/touchfail/secrets/NOSUCHKEY", headers=bearer(token))
 
     assert response.status_code == 404
-    key = db_session.scalars(select(ApiKey).order_by(ApiKey.created_at.desc())).first()
+    key = db_session.get(ApiKey, uuid.UUID(key_id))
     assert key is not None
     assert key.last_used_at is not None
 

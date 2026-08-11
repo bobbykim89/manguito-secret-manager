@@ -39,18 +39,19 @@ def deny_reveal(reveal: bool = False, *, caller: CurrentCaller) -> None:
     """Refuse bulk reveal on the credential, before any bucket is consulted.
 
     ADR 002 A4 makes reveal a property of the credential rather than of the
-    endpoint. A session can never carry the scope, so in SP4 this always
-    refuses; SP5's API keys are what will be able to pass it. Refusing here
-    rather than after the lookup keeps the refusal independent of a resource
-    the caller was never entitled to ask about.
+    endpoint, so this is decided without touching a bucket the caller may
+    have no business knowing about.
+
+    It still refuses unconditionally: nothing here reads the caller's reveal
+    scope yet. The caller parameter is unused for that reason, and is not
+    dead. Its presence makes authentication a sub-dependency of this gate
+    rather than a sibling, which is what makes an unauthenticated request a
+    401 rather than a 403. Removing it would silently flip that back, and
+    test_reveal_is_refused_after_authentication_is_checked is what would
+    catch it.
 
     Declared as a typed boolean rather than read from the query string, so a
     value that is neither true nor false is a 422 rather than a quiet falsy.
-
-    caller is unused until Task 6 wires in caller.may_reveal(), but its mere
-    presence makes authentication a sub-dependency of this gate rather than
-    a sibling of it, so an unauthenticated caller now gets 401 instead of
-    403. See test_reveal_is_refused_after_authentication_is_checked.
     """
     if reveal:
         raise ApiError(
