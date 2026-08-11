@@ -557,20 +557,29 @@ that hashes every candidate; it is not secret and carries no entropy claim. The
 secret is 32 random bytes.
 
 The stored hash is SHA-256 of the **whole token**, not of the secret segment
-alone, so a token pairing one key's lookup id with another key's secret cannot
-verify. Comparison uses `compare_digest` on encoded bytes, because
-`compare_digest` raises `TypeError` on a `str` containing non-ASCII, which in
-SP2 escaped a failure path entirely and produced a 500 with a live credential
-still set.
+alone. This is defence in depth rather than the load bearing control: what
+actually refuses a token pairing one key's lookup id with another key's
+secret is verification resolving exactly the row that id names and comparing
+only against it. Covering the whole token keeps the stored digest from being
+a function of the secret alone, which is what would matter if that lookup
+ever changed shape.
+
+Comparison uses `compare_digest` on encoded bytes, because `compare_digest`
+raises `TypeError` on a `str` containing non-ASCII, which in SP2 escaped a
+failure path entirely and produced a 500 with a live credential still set.
 
 ### A25. API keys reach the secret endpoints only
 
 Buckets and key management require a session.
 
-Two operations in this system are unrecoverable. Deleting a bucket destroys its
-data key, which is cryptographic shredding with no undo and no versioning to
-fall back on. Issuing a key creates a credential that outlives the one that
-made it. A leaked key can reach neither.
+Deleting a bucket destroys its data key, which is shredding with no undo and
+no versioning to fall back on. Issuing a key creates a credential that
+outlives the one that made it. A leaked key can reach neither.
+
+It can, with `can_write`, permanently destroy the secrets inside its scope,
+because A5 rules out versioning and nothing binds a stored blob to a point in
+time. `can_write` is create, overwrite and delete, not merely create, and it
+should be withheld from a pipeline that only reads.
 
 **Amended:** the four secret endpoints accept a session or a key. Everything
 else accepts a session only.
@@ -595,3 +604,23 @@ The debugging cost is accepted and known: a mis-scoped key looks like a missing
 bucket. The message is identical to the unowned case so there is nothing to
 infer from the difference, and the dashboard that issued the key shows its
 scopes.
+
+### A27. Two accepted gaps in the credential trail
+
+Recorded rather than fixed, so neither is discovered as a surprise.
+
+**A revoked or expired key leaves no trace when presented.** Verification
+resolves the row, sees `revoked_at` or `expires_at`, and returns without
+touching `last_used_at` or writing an audit entry. So the log cannot answer
+whether an attacker kept using a credential after it was revoked, which is
+among the first questions asked after a leak. Closing it means writing on a
+path that has just refused a credential, which is a small unauthenticated
+write surface, so it belongs with the rate limiting A7 defers rather than
+ahead of it.
+
+**A refused bulk reveal is audited before ownership is checked.** A4 requires
+the refusal to precede any bucket lookup, so a key without the reveal scope
+can append one `reveal.denied` row per request naming any well formed bucket
+string it invents. That is the correct trade for keeping the refusal
+independent of a resource the caller was never entitled to ask about, and the
+resulting log growth is bounded by the same rate limiting A7 defers.

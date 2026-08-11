@@ -28,9 +28,13 @@ class ApiKey(Base):
     surface, and this hash runs on every API request, so a deliberately slow
     KDF would be pure latency on the hot path.
 
-    Hashing the whole token rather than only its secret segment binds the
-    lookup id to the secret, so a token pairing one key's id with another
-    key's secret cannot verify.
+    Hashing the whole token rather than only its secret segment is defence in
+    depth rather than the load bearing control. What actually refuses a token
+    pairing one key's lookup id with another key's secret is verify_token
+    resolving exactly the row that id names and comparing only against it.
+    Covering the whole token keeps the stored digest from being a function of
+    the secret alone, which is what would matter if that lookup ever changed
+    shape.
     """
 
     __tablename__ = "api_keys"
