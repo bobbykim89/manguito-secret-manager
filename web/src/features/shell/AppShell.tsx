@@ -1,3 +1,5 @@
+import { Outlet } from "react-router";
+
 import { useSession } from "../auth/useSession";
 import { useSignOut } from "../auth/useSignOut";
 
@@ -7,7 +9,8 @@ import { useSignOut } from "../auth/useSignOut";
  * Only ever rendered inside RequireSession, so the session is authenticated in
  * practice. useSession is read again rather than threaded through an outlet
  * context because the query is already cached under the same key, so this
- * costs nothing and keeps the component independently testable.
+ * costs nothing and keeps the component independently testable. A layout
+ * route whose children supply the body through Outlet.
  */
 export function AppShell() {
   const session = useSession();
@@ -39,10 +42,7 @@ export function AppShell() {
       )}
 
       <main className="mx-auto max-w-2xl p-8">
-        <h1 className="text-xl font-semibold">You are signed in</h1>
-        <p className="mt-2 text-slate-600">
-          Secret management arrives in the next sub-project.
-        </p>
+        <Outlet />
       </main>
     </div>
   );

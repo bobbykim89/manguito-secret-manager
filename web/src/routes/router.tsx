@@ -1,7 +1,8 @@
-import { createBrowserRouter, type RouteObject } from "react-router";
+import { createBrowserRouter, Navigate, type RouteObject } from "react-router";
 
 import { LoginPage } from "../features/auth/LoginPage";
 import { RequireSession } from "../features/auth/RequireSession";
+import { BucketsPage } from "../features/buckets/BucketsPage";
 import { HealthPage } from "../features/health/HealthPage";
 import { AppShell } from "../features/shell/AppShell";
 import { NotFound } from "./NotFound";
@@ -19,7 +20,18 @@ export const routes: RouteObject[] = [
   { path: "/health", element: <HealthPage /> },
   {
     element: <RequireSession />,
-    children: [{ path: "/", element: <AppShell /> }],
+    children: [
+      {
+        element: <AppShell />,
+        children: [
+          // ADR 003 A7: the list lives at /buckets so that SP7's
+          // /buckets/:name and SP8's /keys are siblings. replace, so the back
+          // button does not bounce between / and /buckets.
+          { index: true, element: <Navigate to="/buckets" replace /> },
+          { path: "/buckets", element: <BucketsPage /> },
+        ],
+      },
+    ],
   },
   { path: "*", element: <NotFound /> },
 ];
