@@ -35,7 +35,7 @@ export function BucketRow({ bucket }: { bucket: Bucket }) {
             <button
               type="button"
               onClick={() => remove.mutate(bucket.name)}
-              disabled={remove.isPending}
+              disabled={remove.isPending || holdsSecrets}
               className="rounded border px-2 py-1"
             >
               Yes

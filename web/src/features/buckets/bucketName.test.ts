@@ -5,7 +5,16 @@ import { bucketNameSchema } from "./bucketName";
 // The same cases api/tests/test_buckets_api.py uses. If these two ever
 // disagree, the server still refuses and this only guesses wrong about when.
 const ACCEPTED = ["prod", "a", "blog-prod", "manguito_staging", "x".repeat(63)];
-const REJECTED = ["Prod", "with space", "with/slash", "-leading", "", "x".repeat(64)];
+const REJECTED = [
+  "Prod",
+  "with space",
+  "with/slash",
+  "-leading",
+  "",
+  "x".repeat(64),
+  "with.dot",
+  "_leading",
+];
 
 describe("bucketNameSchema", () => {
   it.each(ACCEPTED)("accepts %j", (name) => {

@@ -133,6 +133,7 @@ it("sends a signed in visitor from / to the bucket list", async () => {
 
   expect(await screen.findByRole("heading", { name: /buckets/i })).toBeInTheDocument();
   expect(router.state.location.pathname).toBe("/buckets");
+  expect(router.state.historyAction).toBe("REPLACE");
 });
 
 it("renders the bucket list at /buckets", async () => {
