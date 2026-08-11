@@ -53,8 +53,12 @@ def parse_token(token: str) -> str | None:
 def hash_token(token: str) -> bytes:
     """SHA-256 of the whole token, never of the secret segment alone.
 
-    Hashing the whole thing binds the lookup id to the secret, so a token
-    pairing one key's id with another key's secret cannot verify.
+    Defence in depth rather than today's load bearing control. What actually
+    refuses a token pairing one key's lookup id with another key's secret is
+    verify_token resolving exactly the row that id names and comparing only
+    against it. Covering the whole token keeps the stored digest from being a
+    function of the secret alone, which is what would matter if that lookup
+    ever changed shape, and it costs nothing.
     """
     return hashlib.sha256(token.encode("utf-8")).digest()
 

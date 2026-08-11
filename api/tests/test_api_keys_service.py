@@ -92,14 +92,64 @@ def test_a_secret_containing_an_underscore_still_parses() -> None:
 def test_the_hash_covers_the_whole_token() -> None:
     """Not the secret segment alone.
 
-    Hashing only the secret would let a token pairing one key's lookup id
-    with another key's secret verify against the second key.
+    Two tokens sharing a secret but differing in lookup id must hash
+    differently. An implementation that hashed only the secret would return
+    the same digest for both, every time, rather than sometimes, which is
+    what makes this a usable regression guard.
     """
-    token, _ = generate_token()
-    secret = token.split("_", 2)[2]
+    _, first_id = generate_token()
+    second_id = first_id
+    while second_id == first_id:
+        _, second_id = generate_token()
+    secret = generate_token()[0].split("_", 2)[2]
 
-    assert hash_token(token) != hash_token(secret)
-    assert len(hash_token(token)) == 32
+    assert hash_token(f"{PREFIX}{first_id}_{secret}") != hash_token(f"{PREFIX}{second_id}_{secret}")
+    assert len(hash_token(f"{PREFIX}{first_id}_{secret}")) == 32
+
+
+def test_verification_resolves_only_the_key_its_lookup_id_names(
+    db_session: Session,
+) -> None:
+    """A valid secret under someone else's lookup id resolves to nothing.
+
+    The refusal comes from the lookup rather than from the hash: the row is
+    fetched by the id inside the presented token and compared only against
+    that row, so a secret belonging to a different key cannot match. This
+    would go red if verification were ever changed to search for a matching
+    hash instead of resolving one row, which would let a valid secret
+    authenticate as whichever key it really belongs to while the caller
+    named another.
+
+    It is deliberately not the guard for whole-token hashing.
+    test_the_hash_covers_the_whole_token is, and this test passes under a
+    secret-only hash, which is how we know the two are testing different
+    things.
+    """
+    user = seed_user(db_session, "key-forge")
+    bucket = create_bucket(db_session, provider(), user, "forging")
+    victim, _ = create_key(
+        db_session,
+        user,
+        name="victim",
+        buckets=[bucket],
+        can_write=False,
+        can_reveal=False,
+        expires_at=None,
+    )
+    _, attacker_token = create_key(
+        db_session,
+        user,
+        name="attacker",
+        buckets=[bucket],
+        can_write=False,
+        can_reveal=False,
+        expires_at=None,
+    )
+    db_session.commit()
+
+    forged = f"{PREFIX}{victim.lookup_id}_{attacker_token.split('_', 2)[2]}"
+
+    assert verify_token(db_session, forged) is None
 
 
 def test_a_created_key_verifies(db_session: Session) -> None:
