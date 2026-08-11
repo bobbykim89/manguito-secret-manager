@@ -19,11 +19,15 @@ export function BucketsPage() {
 
       {buckets.isError && (
         <p role="alert" className="rounded border border-red-300 bg-red-50 p-3 text-sm">
-          Could not load your buckets. {buckets.error.message}
+          {/* A cached list survives a transient failure the same way useSession's
+              cached user does: refetchOnWindowFocus makes a dropped request
+              routine, and replacing a working list with an error over one
+              flaky refetch would be a worse experience than showing both. */}
+          Could not refresh your buckets. {buckets.error.message}
         </p>
       )}
 
-      {buckets.isSuccess &&
+      {buckets.data &&
         (buckets.data.length === 0 ? (
           <p className="text-slate-600">No buckets yet. Create one above.</p>
         ) : (

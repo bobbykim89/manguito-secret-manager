@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { renderWithProviders } from "../../test/render";
 import { server } from "../../test/setup";
 import { BucketsPage } from "./BucketsPage";
+import { BUCKETS_QUERY_KEY } from "./useBuckets";
 
 const LIST = "http://localhost:8000/v1/buckets";
 
@@ -55,7 +56,35 @@ describe("BucketsPage", () => {
     );
     renderWithProviders(<BucketsPage />);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/could not load/i);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/could not refresh/i);
+  });
+
+  it("keeps showing a cached list through a failed background refetch", async () => {
+    // refetchOnWindowFocus is on, so a stale, momentarily-failing list is
+    // routine, not exceptional, exactly like useSession's equivalent test.
+    // The first response is the initial mount; the second is the refetch
+    // triggered explicitly below.
+    let requestCount = 0;
+    server.use(
+      http.get(LIST, () => {
+        requestCount += 1;
+        if (requestCount === 1) {
+          return HttpResponse.json({ ok: true, data: [aBucket("stable")] });
+        }
+        return HttpResponse.json(
+          { ok: false, error: { code: "INTERNAL_ERROR", message: "Boom." } },
+          { status: 500 },
+        );
+      }),
+    );
+    const { queryClient } = renderWithProviders(<BucketsPage />);
+    await screen.findByRole("listitem", { name: /stable/i });
+
+    await queryClient.refetchQueries({ queryKey: BUCKETS_QUERY_KEY });
+
+    await waitFor(() => expect(requestCount).toBe(2));
+    expect(screen.getByRole("listitem", { name: /stable/i })).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent(/could not refresh/i);
   });
 
   it("refuses to delete a bucket that still holds secrets, and says why", async () => {
@@ -131,5 +160,33 @@ describe("BucketsPage", () => {
     await userEvent.click(within(row).getByRole("button", { name: /yes/i }));
 
     expect(await within(row).findByRole("alert")).toHaveTextContent(/still holds secrets/i);
+  });
+
+  it("disables a confirmed delete once the corrected count shows it is not empty", async () => {
+    let calls = 0;
+    server.use(
+      http.get(LIST, () => {
+        calls += 1;
+        return HttpResponse.json({
+          ok: true,
+          data: [aBucket("racy2", calls === 1 ? 0 : 3)],
+        });
+      }),
+      http.delete(`${LIST}/:name`, () =>
+        HttpResponse.json(
+          { ok: false, error: { code: "BUCKET_NOT_EMPTY", message: "Still holds secrets." } },
+          { status: 409 },
+        ),
+      ),
+    );
+    renderWithProviders(<BucketsPage />);
+    const row = await screen.findByRole("listitem", { name: /racy2/i });
+
+    await userEvent.click(within(row).getByRole("button", { name: /^delete$/i }));
+    await userEvent.click(within(row).getByRole("button", { name: /yes/i }));
+
+    await waitFor(() =>
+      expect(within(row).getByRole("button", { name: /yes/i })).toBeDisabled(),
+    );
   });
 });
