@@ -62,9 +62,11 @@ def upgrade() -> None:
         ["id"],
         ondelete="SET NULL",
     )
+    op.create_index("ix_audit_log_api_key_id", "audit_log", ["api_key_id"])
 
 
 def downgrade() -> None:
+    op.drop_index("ix_audit_log_api_key_id", table_name="audit_log")
     op.drop_constraint("fk_audit_log_api_key_id", "audit_log", type_="foreignkey")
     op.drop_table("api_key_buckets")
     op.drop_table("api_keys")

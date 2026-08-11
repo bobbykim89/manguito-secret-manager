@@ -1,5 +1,6 @@
 import uuid
 from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi import FastAPI
@@ -7,14 +8,14 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine
 from sqlalchemy.orm import Session
 
-from app.api_keys import create_key
+from app.api_keys import create_key, generate_token
 from app.auth.caller import Caller, CurrentCaller
 from app.auth.cookies import SESSION_COOKIE
 from app.auth.sessions import create_session
 from app.buckets import create_bucket
 from app.crypto.keys import EnvKeyProvider
 from app.envelope import ApiError, api_error_handler
-from app.models import Bucket, User
+from app.models import ApiKey, Bucket, User
 
 KEK_1 = bytes(range(32))
 UNAUTHENTICATED_BODY = {
@@ -180,6 +181,43 @@ def test_every_bad_header_gives_the_identical_401(
 
     assert response.status_code == 401
     assert response.json() == UNAUTHENTICATED_BODY
+
+
+def test_a_wrong_secret_a_revoked_key_and_an_expired_key_are_indistinguishable(
+    caller_app: TestClient, db_session: Session
+) -> None:
+    """The three failures that need a real key to construct.
+
+    Same body as a malformed or unknown token, so nothing about which
+    failure occurred can be read off the response.
+    """
+    user = seed_user(db_session, "caller-three-failures")
+    bucket = a_bucket(db_session, user, "threefailures")
+
+    def issue() -> tuple[ApiKey, str]:
+        return create_key(
+            db_session,
+            user,
+            name="ci",
+            buckets=[bucket],
+            can_write=False,
+            can_reveal=False,
+            expires_at=None,
+        )
+
+    wrong_key, _ = issue()
+    revoked, revoked_token = issue()
+    expired, expired_token = issue()
+    revoked.revoked_at = datetime.now(UTC)
+    expired.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    db_session.commit()
+    wrong_secret = f"msm_{wrong_key.lookup_id}_{generate_token()[0].split('_', 2)[2]}"
+
+    for token in (wrong_secret, revoked_token, expired_token):
+        response = caller_app.get("/probe", headers={"Authorization": f"Bearer {token}"})
+
+        assert response.status_code == 401
+        assert response.json() == UNAUTHENTICATED_BODY
 
 
 def test_a_bad_header_does_not_fall_back_to_the_cookie(

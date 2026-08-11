@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Response
-from pydantic import BaseModel, Field
+from pydantic import AwareDatetime, BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.api_keys import create_key, get_key, list_keys_with_buckets, revoke_key
@@ -49,10 +49,10 @@ class CreatedApiKeyData(ApiKeyData):
 
 class CreateKeyRequest(BaseModel):
     name: str = Field(min_length=1, max_length=NAME_MAX_LENGTH)
-    buckets: list[BucketName] = Field(min_length=1)
+    buckets: list[BucketName] = Field(min_length=1, max_length=50)
     can_write: bool = False
     can_reveal: bool = False
-    expires_at: datetime | None = None
+    expires_at: AwareDatetime | None = None
 
 
 class RevokedData(BaseModel):

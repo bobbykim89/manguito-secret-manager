@@ -122,6 +122,19 @@ def test_an_expiry_in_the_past_is_rejected(client: TestClient, db_session: Sessi
     assert response.status_code == 422
 
 
+def test_a_naive_expiry_is_rejected(client: TestClient, db_session: Session) -> None:
+    """An offset-less timestamp is what a hand written curl sends.
+
+    Without an offset there is no way to know which instant was meant, and
+    comparing it against an aware now raises rather than answering.
+    """
+    with_bucket(client, db_session, "keys-naive", "naive")
+
+    response = client.post("/v1/keys", json=create_body("naive", expires_at="2027-01-01T00:00:00"))
+
+    assert response.status_code == 422
+
+
 def test_revoking_marks_the_key(client: TestClient, db_session: Session) -> None:
     with_bucket(client, db_session, "keys-revoke", "revoking")
     key_id = client.post("/v1/keys", json=create_body("revoking")).json()["data"]["id"]
