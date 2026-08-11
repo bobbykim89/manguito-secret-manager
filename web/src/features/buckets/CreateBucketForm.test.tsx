@@ -99,4 +99,41 @@ describe("CreateBucketForm", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/could not reach/i);
   });
+
+  it("disables the input and button while the mutation is pending", async () => {
+    let resolvePost: (() => void) | undefined;
+    server.use(
+      http.post(
+        LIST,
+        () =>
+          new Promise((resolve) => {
+            resolvePost = () =>
+              resolve(
+                HttpResponse.json(
+                  {
+                    ok: true,
+                    data: { id: "1", name: "prod", created_at: "2026-08-11T00:00:00Z", secret_count: 0 },
+                  },
+                  { status: 201 },
+                ),
+              );
+          }),
+      ),
+      http.get(LIST, () => HttpResponse.json({ ok: true, data: [] })),
+    );
+    renderWithProviders(<CreateBucketForm />);
+    const input = screen.getByRole("textbox", { name: /bucket name/i });
+    const button = screen.getByRole("button", { name: /create/i });
+
+    await userEvent.type(input, "prod");
+    await userEvent.click(button);
+
+    await waitFor(() => expect(input).toBeDisabled());
+    expect(button).toBeDisabled();
+
+    resolvePost?.();
+
+    await waitFor(() => expect(input).not.toBeDisabled());
+    expect(button).not.toBeDisabled();
+  });
 });
