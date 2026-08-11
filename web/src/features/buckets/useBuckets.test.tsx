@@ -132,4 +132,33 @@ describe("useDeleteBucket", () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
     await waitFor(() => expect(listCalls).toBeGreaterThan(before));
   });
+
+  it("does not refetch when the failure is unrelated to a stale count", async () => {
+    let listCalls = 0;
+    server.use(
+      http.get(LIST, () => {
+        listCalls += 1;
+        return HttpResponse.json({ ok: true, data: [] });
+      }),
+      http.delete(`${LIST}/:name`, () =>
+        HttpResponse.json(
+          { ok: false, error: { code: "UNAUTHENTICATED", message: "Nope." } },
+          { status: 401 },
+        ),
+      ),
+    );
+    const Wrapper = wrapper();
+    const list = renderHook(() => useBuckets(), { wrapper: Wrapper });
+    await waitFor(() => expect(list.result.current.isSuccess).toBe(true));
+    const before = listCalls;
+
+    const { result } = renderHook(() => useDeleteBucket(), { wrapper: Wrapper });
+    result.current.mutate("whatever");
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    // Give any wrongly-unconditional invalidation a chance to fire before
+    // asserting its absence.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(listCalls).toBe(before);
+  });
 });
