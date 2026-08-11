@@ -212,3 +212,37 @@ is still one path out of the application rather than two.
 It carries no session-key exclusion. That exclusion exists on the query side
 only because the guard reads the session query's own error, and no mutation
 writes to that key.
+
+### A9. Zustand does not arrive with reveal toggles
+
+A5 said it would. That was written in SP1, before anyone worked through what
+reveal state actually is.
+
+Designing SP7 showed it is ephemeral and component local: leaving a bucket and
+returning hides every previously revealed secret, which is the safer default for
+a secret manager and means the state never outlives the component tree.
+`useState` covers it, and nothing global exists whose purpose is remembering
+that a plaintext should be on screen.
+
+SP6 produced the same correction one sub-project earlier, where a planned page
+level confirm flag turned out to belong in the row.
+
+**Amended:** reveal state is row local `useState`. Zustand has no scheduled
+arrival. If SP8 finds no client state either, remove it from this ADR's stack
+rather than leaving it waiting indefinitely for a consumer that keeps not
+appearing.
+
+### A10. The clipboard is a named exception to invariant 8
+
+Invariant 8 lists `localStorage`, `sessionStorage`, URL state and client side
+error reporting. The clipboard is not on that list, and is nonetheless a place a
+plaintext secret goes.
+
+**Amended:** copying a revealed secret to the clipboard is permitted, and is the
+product's purpose rather than a concession to it.
+
+Nothing clears it afterwards. `navigator.clipboard.writeText("")` only succeeds
+while the document has focus, so a timed clear fails precisely when the user has
+switched to the application they meant to paste into. A guarantee that does not
+hold in its main case is worse than none, and the audit log is the real record
+of who read what.
