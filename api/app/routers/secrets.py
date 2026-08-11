@@ -146,6 +146,17 @@ def list_endpoint(
         # auditing every page load would bury the entries that matter.
         return Ok(data=[_to_data(secret) for secret in secrets_in_bucket])
 
+    if reveal and not caller.may_reveal():
+        # Belt and braces. deny_reveal already refused this as a route level
+        # dependency, and that is what makes the refusal precede the bucket
+        # lookup. This is here so the decision is also in the body, because a
+        # decorator argument is the thing someone removes while refactoring.
+        raise ApiError(
+            "REVEAL_NOT_PERMITTED",
+            "Bulk reveal requires an API key with the reveal scope.",
+            status_code=403,
+        )
+
     # Decrypt everything before auditing anything, so a bucket with one
     # unreadable row records no reads at all rather than a partial trail.
     values = {

@@ -1,10 +1,20 @@
+import uuid
+
+import pytest
+from fastapi import Response
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.auth.caller import Caller
 from app.auth.cookies import SESSION_COOKIE
 from app.auth.sessions import create_session
+from app.buckets import create_bucket
+from app.crypto.keys import EnvKeyProvider
+from app.envelope import ApiError
 from app.models import AuditEntry, User
+from app.routers.secrets import list_endpoint
+from app.secrets_service import put_secret
 
 
 def sign_in(client: TestClient, session: Session, sub: str) -> User:
@@ -148,3 +158,47 @@ def test_reveal_on_an_out_of_scope_bucket_is_refused_before_the_lookup(
 
     assert response.status_code == 403
     assert response.json()["error"]["code"] == "REVEAL_NOT_PERMITTED"
+
+
+def test_the_body_refuses_reveal_even_without_the_route_dependency(
+    db_session: Session,
+) -> None:
+    """The gate must not depend solely on a decorator argument.
+
+    A monkeypatch on `app.routers.secrets.deny_reveal` was tried first, to
+    simulate someone removing the route level dependency in a refactor. It
+    does not reach the endpoint under test: FastAPI resolves a route's
+    dependency callables once, at route registration, so patching the
+    module attribute afterward never touches the wiring an HTTP request
+    goes through, and the test passed even with the body check removed.
+
+    Calling list_endpoint directly is what actually bypasses deny_reveal,
+    proving the body's own check is what refuses this caller.
+    """
+    provider = EnvKeyProvider({1: bytes(range(32))}, 1)
+    user = User(google_sub="reveal-belt-direct", email="reveal-belt-direct@example.com", name="T")
+    db_session.add(user)
+    db_session.flush()
+    bucket = create_bucket(db_session, provider, user, "revealbeltdirect")
+    put_secret(db_session, provider, bucket, "ALPHA", "alpha-value")
+    db_session.commit()
+    caller = Caller(
+        user=user,
+        api_key_id=uuid.uuid4(),
+        can_write=False,
+        can_reveal=False,
+        scoped_bucket_ids=frozenset({bucket.id}),
+    )
+
+    with pytest.raises(ApiError) as excinfo:
+        list_endpoint(
+            bucket=bucket,
+            caller=caller,
+            session=db_session,
+            provider=provider,
+            response=Response(),
+            reveal=True,
+        )
+
+    assert excinfo.value.status_code == 403
+    assert excinfo.value.code == "REVEAL_NOT_PERMITTED"
