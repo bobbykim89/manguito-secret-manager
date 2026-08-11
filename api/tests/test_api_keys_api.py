@@ -136,7 +136,7 @@ def test_revoking_marks_the_key(client: TestClient, db_session: Session) -> None
 def test_revoking_twice_succeeds_without_moving_the_timestamp(
     client: TestClient, db_session: Session
 ) -> None:
-    with_bucket(client, db_session, "keys-revoke-twice", "revoketwice")
+    user = with_bucket(client, db_session, "keys-revoke-twice", "revoketwice")
     key_id = client.post("/v1/keys", json=create_body("revoketwice")).json()["data"]["id"]
     client.delete(f"/v1/keys/{key_id}")
     first = client.get("/v1/keys").json()["data"][0]["revoked_at"]
@@ -145,6 +145,24 @@ def test_revoking_twice_succeeds_without_moving_the_timestamp(
 
     assert second_response.status_code == 200
     assert client.get("/v1/keys").json()["data"][0]["revoked_at"] == first
+    entries = list(
+        db_session.scalars(
+            select(AuditEntry).where(
+                AuditEntry.user_id == user.id, AuditEntry.action == "apikey.revoked"
+            )
+        )
+    )
+    assert len(entries) == 1
+
+
+def test_a_malformed_key_id_is_a_422(client: TestClient, db_session: Session) -> None:
+    """Declared on the route so the generated schema matches what is sent."""
+    sign_in(client, db_session, "keys-bad-id")
+
+    response = client.delete("/v1/keys/not-a-uuid")
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
 
 
 def test_revoking_another_users_key_is_a_404(client: TestClient, db_session: Session) -> None:
@@ -230,6 +248,19 @@ def test_an_api_key_cannot_reach_key_management(
 
     assert response.status_code == 401
     assert response.json()["error"]["code"] == "UNAUTHENTICATED"
+
+
+def test_a_repeated_bucket_name_is_scoped_once(client: TestClient, db_session: Session) -> None:
+    """A scope is a set. The join table's composite key would otherwise
+    reject the second row and turn a harmless client mistake into a 500."""
+    with_bucket(client, db_session, "keys-dupe", "dupebucket")
+
+    response = client.post(
+        "/v1/keys", json=create_body("dupebucket", buckets=["dupebucket", "dupebucket"])
+    )
+
+    assert response.status_code == 201
+    assert response.json()["data"]["buckets"] == ["dupebucket"]
 
 
 def test_the_stored_hash_is_never_returned(client: TestClient, db_session: Session) -> None:

@@ -76,6 +76,9 @@ def _to_data(key: ApiKey, buckets: list[str]) -> ApiKeyData:
 
 @router.get("", response_model=Ok[list[ApiKeyData]], responses={401: {"model": Err}})
 def list_endpoint(user: CurrentUser, session: Db) -> Ok[list[ApiKeyData]]:
+    # Deliberately not audited, like the secret list. Reading which
+    # credentials exist is not using one, and a row per page load would bury
+    # the entries that matter.
     return Ok(
         data=[_to_data(key, buckets) for key, buckets in list_keys_with_buckets(session, user)]
     )
@@ -97,7 +100,11 @@ def create_endpoint(
             status_code=422,
         )
     buckets = []
-    for name in body.buckets:
+    # A scope is a set, so a name repeated in the request means the same
+    # thing once. dict.fromkeys deduplicates while keeping the caller's
+    # order, which matters because the join table's composite primary key
+    # would otherwise reject the second row and 500 the request.
+    for name in dict.fromkeys(body.buckets):
         bucket = get_bucket(session, user, name)
         if bucket is None:
             # The same answer an unowned bucket gives everywhere else.
@@ -129,7 +136,7 @@ def create_endpoint(
 @router.delete(
     "/{key_id}",
     response_model=Ok[RevokedData],
-    responses={401: {"model": Err}, 404: {"model": Err}},
+    responses={401: {"model": Err}, 404: {"model": Err}, 422: {"model": Err}},
 )
 def revoke_endpoint(key_id: uuid.UUID, user: CurrentUser, session: Db) -> Ok[RevokedData]:
     key = get_key(session, user, key_id)
