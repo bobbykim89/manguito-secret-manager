@@ -63,11 +63,13 @@ describe("CreateBucketForm", () => {
       ),
     );
     renderWithProviders(<CreateBucketForm />);
+    const input = screen.getByRole("textbox", { name: /bucket name/i });
 
-    await userEvent.type(screen.getByRole("textbox", { name: /bucket name/i }), "prod");
+    await userEvent.type(input, "prod");
     await userEvent.click(screen.getByRole("button", { name: /create/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/already exists/i);
+    expect(input).toHaveAttribute("aria-invalid", "true");
   });
 
   it("keeps what was typed when the server refuses", async () => {
@@ -93,11 +95,13 @@ describe("CreateBucketForm", () => {
   it("shows any other failure without blaming the field", async () => {
     server.use(http.post(LIST, () => HttpResponse.error()));
     renderWithProviders(<CreateBucketForm />);
+    const input = screen.getByRole("textbox", { name: /bucket name/i });
 
-    await userEvent.type(screen.getByRole("textbox", { name: /bucket name/i }), "prod");
+    await userEvent.type(input, "prod");
     await userEvent.click(screen.getByRole("button", { name: /create/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/could not reach/i);
+    expect(input).not.toHaveAttribute("aria-invalid");
   });
 
   it("disables the input and button while the mutation is pending", async () => {
