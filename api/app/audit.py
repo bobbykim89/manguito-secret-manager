@@ -12,6 +12,13 @@ SECRET_CREATED = "secret.created"
 SECRET_UPDATED = "secret.updated"
 SECRET_READ = "secret.read"
 SECRET_DELETED = "secret.deleted"
+APIKEY_CREATED = "apikey.created"
+APIKEY_REVOKED = "apikey.revoked"
+# Written when a credential asks for bulk reveal and is refused. Worth
+# nothing in SP4, where refusal was architecturally guaranteed and an entry
+# would have recorded only that the gate worked. Worth a lot here, where it
+# discriminates between credentials.
+REVEAL_DENIED = "reveal.denied"
 
 
 def record_audit(

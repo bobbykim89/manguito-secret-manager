@@ -379,6 +379,11 @@ def test_a_corrupted_row_fails_without_leaking_anything(db_session: Session) -> 
 
 
 def test_reveal_is_refused(client: TestClient, db_session: Session) -> None:
+    """A session can never reveal, whatever the user owns.
+
+    ADR 003 requires that a browser cannot reach bulk reveal at all, so this
+    is refused for the credential's type rather than for a missing scope.
+    """
     with_bucket(client, db_session, "api-reveal", "revealing")
     client.put("/v1/buckets/revealing/secrets/KEY", json={"value": "v"})
 
@@ -438,20 +443,18 @@ def test_a_truthy_spelling_of_reveal_still_refuses(client: TestClient, db_sessio
     assert client.get("/v1/buckets/revealyes/secrets?reveal=1").status_code == 403
 
 
-def test_reveal_is_refused_before_authentication_is_checked(client: TestClient) -> None:
-    """Pins today's ordering, which is expected to change.
+def test_reveal_is_refused_after_authentication_is_checked(client: TestClient) -> None:
+    """The flip SP4's version of this test predicted.
 
-    The route-level deny_reveal dependency resolves before CurrentUser, so an
-    unauthenticated caller gets 403 rather than 401. That is correct for now,
-    because no credential can carry the reveal scope yet. Once API keys can,
-    the gate will have to inspect the credential and will therefore need
-    authentication to resolve first, turning this into a 401. This test
-    exists so that change shows up as a deliberate diff.
+    While nothing could carry the reveal scope, refusing before
+    authentication was correct and the answer was 403. The gate now has to
+    know which credential is asking, so authentication resolves first and an
+    unauthenticated caller gets 401.
     """
     response = client.get("/v1/buckets/nosuchbucket/secrets?reveal=true")
 
-    assert response.status_code == 403
-    assert response.json()["error"]["code"] == "REVEAL_NOT_PERMITTED"
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "UNAUTHENTICATED"
 
 
 def test_reveal_is_not_a_parameter_on_the_single_key_endpoint(
