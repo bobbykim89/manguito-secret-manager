@@ -12,7 +12,7 @@ from app.audit import (
     SECRET_UPDATED,
     record_audit,
 )
-from app.auth.dependencies import CurrentUser
+from app.auth.caller import CurrentCaller
 from app.buckets import get_bucket
 from app.crypto.keys import KeyProvider, get_key_provider
 from app.db import get_db
@@ -35,7 +35,7 @@ Provider = Annotated[KeyProvider, Depends(get_key_provider)]
 KeyName = Annotated[str, Path(pattern=KEY_NAME_PATTERN)]
 
 
-def deny_reveal(reveal: bool = False) -> None:
+def deny_reveal(reveal: bool = False, *, caller: CurrentCaller) -> None:
     """Refuse bulk reveal on the credential, before any bucket is consulted.
 
     ADR 002 A4 makes reveal a property of the credential rather than of the
@@ -46,6 +46,11 @@ def deny_reveal(reveal: bool = False) -> None:
 
     Declared as a typed boolean rather than read from the query string, so a
     value that is neither true nor false is a 422 rather than a quiet falsy.
+
+    caller is unused until Task 6 wires in caller.may_reveal(), but its mere
+    presence makes authentication a sub-dependency of this gate rather than
+    a sibling of it, so an unauthenticated caller now gets 401 instead of
+    403. See test_reveal_is_refused_after_authentication_is_checked.
     """
     if reveal:
         raise ApiError(
@@ -57,17 +62,18 @@ def deny_reveal(reveal: bool = False) -> None:
 
 def resolve_bucket(
     bucket: Annotated[str, Path(pattern=NAME_PATTERN)],
-    user: CurrentUser,
+    caller: CurrentCaller,
     session: Db,
 ) -> Bucket:
-    """The one place ownership is checked for all four endpoints.
+    """The one place ownership and scope are checked for all four endpoints.
 
     get_bucket filters on user_id, so another user's bucket is
-    indistinguishable from one that does not exist and the answer is 404
-    rather than 403 without any endpoint repeating the check.
+    indistinguishable from one that does not exist. A bucket the caller owns
+    but the key was not scoped to gets the identical answer, so a leaked key
+    probing names learns nothing. See ADR 002 A26.
     """
-    found = get_bucket(session, user, bucket)
-    if found is None:
+    found = get_bucket(session, caller.user, bucket)
+    if found is None or not caller.may_access(found):
         raise ApiError("BUCKET_NOT_FOUND", f"No bucket named {bucket!r}.", status_code=404)
     return found
 
@@ -114,7 +120,9 @@ def _to_data(secret: Secret) -> SecretData:
         422: {"model": Err},
     },
 )
-def list_endpoint(bucket: ResolvedBucket, session: Db) -> Ok[list[SecretData]]:
+def list_endpoint(
+    bucket: ResolvedBucket, caller: CurrentCaller, session: Db
+) -> Ok[list[SecretData]]:
     # Deliberately not audited. Only a read of a value is a read, and
     # auditing every page load would bury the entries that matter.
     return Ok(data=[_to_data(secret) for secret in list_secrets(session, bucket)])
@@ -128,7 +136,7 @@ def list_endpoint(bucket: ResolvedBucket, session: Db) -> Ok[list[SecretData]]:
 def get_endpoint(
     key: KeyName,
     bucket: ResolvedBucket,
-    user: CurrentUser,
+    caller: CurrentCaller,
     session: Db,
     provider: Provider,
     response: Response,
@@ -144,7 +152,12 @@ def get_endpoint(
     # successful read.
     value = read_secret(provider, bucket, secret)
     record_audit(
-        session, user_id=user.id, action=SECRET_READ, bucket_name=bucket.name, key_name=key
+        session,
+        user_id=caller.user.id,
+        action=SECRET_READ,
+        bucket_name=bucket.name,
+        key_name=key,
+        api_key_id=caller.api_key_id,
     )
     # Built before the commit: expire_on_commit would force a refresh SELECT
     # to read created_at/updated_at afterwards, and a failure on that refresh
@@ -168,6 +181,7 @@ def get_endpoint(
     responses={
         201: {"model": Ok[SecretData]},
         401: {"model": Err},
+        403: {"model": Err},
         404: {"model": Err},
         422: {"model": Err},
     },
@@ -176,11 +190,17 @@ def put_endpoint(
     key: KeyName,
     body: PutSecretRequest,
     bucket: ResolvedBucket,
-    user: CurrentUser,
+    caller: CurrentCaller,
     session: Db,
     provider: Provider,
     response: Response,
 ) -> Ok[SecretData]:
+    if not caller.may_write():
+        raise ApiError(
+            "WRITE_NOT_PERMITTED",
+            "This API key may not write secrets.",
+            status_code=403,
+        )
     try:
         secret, created = put_secret(session, provider, bucket, key, body.value)
     except SecretTooLargeError as error:
@@ -190,10 +210,11 @@ def put_endpoint(
         raise ApiError("VALIDATION_ERROR", str(error), status_code=422) from None
     record_audit(
         session,
-        user_id=user.id,
+        user_id=caller.user.id,
         action=SECRET_CREATED if created else SECRET_UPDATED,
         bucket_name=bucket.name,
         key_name=key,
+        api_key_id=caller.api_key_id,
     )
     # Built before the commit, for the same reason as get_endpoint: reading
     # these after expire_on_commit refreshes them in a fresh transaction the
@@ -207,11 +228,17 @@ def put_endpoint(
 @router.delete(
     "/{key}",
     response_model=Ok[SecretData],
-    responses={401: {"model": Err}, 404: {"model": Err}, 422: {"model": Err}},
+    responses={401: {"model": Err}, 403: {"model": Err}, 404: {"model": Err}, 422: {"model": Err}},
 )
 def delete_endpoint(
-    key: KeyName, bucket: ResolvedBucket, user: CurrentUser, session: Db
+    key: KeyName, bucket: ResolvedBucket, caller: CurrentCaller, session: Db
 ) -> Ok[SecretData]:
+    if not caller.may_write():
+        raise ApiError(
+            "WRITE_NOT_PERMITTED",
+            "This API key may not write secrets.",
+            status_code=403,
+        )
     secret = get_secret(session, bucket, key)
     if secret is None:
         raise ApiError(
@@ -222,7 +249,12 @@ def delete_endpoint(
     data = _to_data(secret)
     session.delete(secret)
     record_audit(
-        session, user_id=user.id, action=SECRET_DELETED, bucket_name=bucket.name, key_name=key
+        session,
+        user_id=caller.user.id,
+        action=SECRET_DELETED,
+        bucket_name=bucket.name,
+        key_name=key,
+        api_key_id=caller.api_key_id,
     )
     session.commit()
     return Ok(data=data)
