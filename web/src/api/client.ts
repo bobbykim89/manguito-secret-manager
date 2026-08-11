@@ -116,4 +116,5 @@ export const client = {
             headers: { "Content-Type": "application/json" },
           },
     ),
+  del: <T>(path: string): Promise<T> => request<T>(path, { method: "DELETE" }),
 };
