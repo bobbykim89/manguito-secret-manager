@@ -79,3 +79,36 @@ describe("createQueryClient", () => {
     expect(createQueryClient()).not.toBe(createQueryClient());
   });
 });
+
+describe("the mutation 401 handler", () => {
+  it("clears the session when a mutation is unauthorised", async () => {
+    const client = createQueryClient();
+    client.setQueryData(SESSION_QUERY_KEY, { id: "1", email: "a@example.com", name: "A" });
+
+    await client
+      .getMutationCache()
+      .build(client, {
+        mutationFn: () => Promise.reject(new ApiError("UNAUTHENTICATED", "Nope.", 401)),
+      })
+      .execute(undefined)
+      .catch(() => undefined);
+
+    expect(client.getQueryData(SESSION_QUERY_KEY)).toBeNull();
+  });
+
+  it("leaves the session alone for any other mutation failure", async () => {
+    const client = createQueryClient();
+    const user = { id: "1", email: "a@example.com", name: "A" };
+    client.setQueryData(SESSION_QUERY_KEY, user);
+
+    await client
+      .getMutationCache()
+      .build(client, {
+        mutationFn: () => Promise.reject(new ApiError("BUCKET_EXISTS", "Taken.", 409)),
+      })
+      .execute(undefined)
+      .catch(() => undefined);
+
+    expect(client.getQueryData(SESSION_QUERY_KEY)).toEqual(user);
+  });
+});

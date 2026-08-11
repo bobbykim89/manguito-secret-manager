@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter, RouterProvider, type RouteObject } from "react-router";
@@ -48,6 +48,10 @@ describe("route access", () => {
 
   it("returns the user to the login screen after signing out", async () => {
     signedIn();
+    // / now redirects to /buckets, so BucketsPage mounts and needs a handler.
+    server.use(
+      http.get("http://localhost:8000/v1/buckets", () => HttpResponse.json({ ok: true, data: [] })),
+    );
     const router = createMemoryRouter(routes, { initialEntries: ["/"] });
     renderWithProviders(<RouterProvider router={router} />);
     await screen.findByText("a@example.com");
@@ -116,4 +120,71 @@ describe("global 401 handling", () => {
 
     expect(await screen.findByRole("link", { name: /continue with google/i })).toBeInTheDocument();
   });
+});
+
+it("sends a signed in visitor from / to the bucket list", async () => {
+  signedIn();
+  server.use(
+    http.get("http://localhost:8000/v1/buckets", () => HttpResponse.json({ ok: true, data: [] })),
+  );
+  const router = createMemoryRouter(routes, { initialEntries: ["/"] });
+
+  renderWithProviders(<RouterProvider router={router} />);
+
+  expect(await screen.findByRole("heading", { name: /buckets/i })).toBeInTheDocument();
+  expect(router.state.location.pathname).toBe("/buckets");
+  expect(router.state.historyAction).toBe("REPLACE");
+});
+
+it("renders the bucket list at /buckets", async () => {
+  signedIn();
+  server.use(
+    http.get("http://localhost:8000/v1/buckets", () => HttpResponse.json({ ok: true, data: [] })),
+  );
+  const router = createMemoryRouter(routes, { initialEntries: ["/buckets"] });
+
+  renderWithProviders(<RouterProvider router={router} />);
+
+  expect(await screen.findByText(/no buckets yet/i)).toBeInTheDocument();
+});
+
+it("keeps /buckets behind the session guard", async () => {
+  signedOut();
+  const router = createMemoryRouter(routes, { initialEntries: ["/buckets"] });
+
+  renderWithProviders(<RouterProvider router={router} />);
+
+  expect(await screen.findByRole("link", { name: /continue with google/i })).toBeInTheDocument();
+});
+
+it("sends the user to login when a mutation is unauthorised", async () => {
+  // The end to end half of the MutationCache handler. The ONLY 401 in this
+  // interaction comes from the DELETE: /me answers 200 throughout, so the
+  // query handler cannot be what clears the session. Without that care this
+  // test would pass whether or not the mutation handler exists.
+  signedIn();
+  server.use(
+    http.get("http://localhost:8000/v1/buckets", () =>
+      HttpResponse.json({
+        ok: true,
+        data: [
+          { id: "1", name: "doomed", created_at: "2026-08-11T00:00:00Z", secret_count: 0 },
+        ],
+      }),
+    ),
+    http.delete("http://localhost:8000/v1/buckets/doomed", () =>
+      HttpResponse.json(
+        { ok: false, error: { code: "UNAUTHENTICATED", message: "Authentication is required." } },
+        { status: 401 },
+      ),
+    ),
+  );
+  const router = createMemoryRouter(routes, { initialEntries: ["/buckets"] });
+  renderWithProviders(<RouterProvider router={router} />);
+  const row = await screen.findByRole("listitem", { name: /doomed/i });
+
+  await userEvent.click(within(row).getByRole("button", { name: /^delete$/i }));
+  await userEvent.click(within(row).getByRole("button", { name: /yes/i }));
+
+  expect(await screen.findByRole("link", { name: /continue with google/i })).toBeInTheDocument();
 });

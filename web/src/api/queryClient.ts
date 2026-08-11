@@ -1,4 +1,4 @@
-import { QueryCache, QueryClient } from "@tanstack/react-query";
+import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
 
 import { ApiError } from "./client";
 
@@ -14,10 +14,10 @@ export const SESSION_QUERY_KEY = ["session"] as const;
  * callback would hide routing somewhere nobody looks and create an import
  * cycle between the router and this module.
  *
- * The handler is attached to the QueryCache, so it only sees queries.
- * SP2b's only mutation is logout, which needs no auth and is idempotent, so
- * that is safe here. A mutation that touches real secret data will need the
- * same handling added to a MutationCache alongside this one.
+ * The same handler is installed on the MutationCache, so a 401 from any
+ * mutation clears the session too. SP2b had only sign out, whose endpoint
+ * needs no auth, so the query half was enough then and is not now. See ADR
+ * 003 A8.
  *
  * A fresh client per call, so tests never share a cache.
  */
@@ -51,8 +51,23 @@ export function createQueryClient(): QueryClient {
     },
   });
 
+  const mutationCache = new MutationCache({
+    onError: (error) => {
+      if (client === undefined) {
+        return;
+      }
+      // No session key exclusion here, unlike the query cache. That exclusion
+      // exists only because the route guard reads the session query's own
+      // error, and no mutation writes to that key. See ADR 003 A8.
+      if (error instanceof ApiError && error.code === "UNAUTHENTICATED") {
+        client.setQueryData(SESSION_QUERY_KEY, null);
+      }
+    },
+  });
+
   client = new QueryClient({
     queryCache,
+    mutationCache,
     defaultOptions: { queries: { retry: false } },
   });
 

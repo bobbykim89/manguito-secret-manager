@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { MemoryRouter } from "react-router";
+import { createMemoryRouter, MemoryRouter, RouterProvider } from "react-router";
 import { describe, expect, it } from "vitest";
 
 import { SESSION_QUERY_KEY } from "../../api/queryClient";
@@ -40,12 +40,16 @@ describe("AppShell", () => {
     expect(await screen.findByText("a@example.com")).toBeInTheDocument();
   });
 
-  it("says secret management is still to come", async () => {
+  it("renders whatever the router puts inside it", async () => {
     signedIn();
+    const router = createMemoryRouter(
+      [{ element: <AppShell />, children: [{ path: "/", element: <p>child content</p> }] }],
+      { initialEntries: ["/"] },
+    );
 
-    renderShell();
+    renderWithProviders(<RouterProvider router={router} />);
 
-    expect(await screen.findByText(/next sub-project/i)).toBeInTheDocument();
+    expect(await screen.findByText("child content")).toBeInTheDocument();
   });
 
   it("clears the session when sign out succeeds", async () => {

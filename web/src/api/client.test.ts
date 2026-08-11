@@ -179,6 +179,54 @@ describe("client.post", () => {
   });
 });
 
+describe("client.del", () => {
+  it("sends DELETE and returns the narrowed data", async () => {
+    let method: string | undefined;
+    server.use(
+      http.delete(`${BASE}/v1/buckets/gone`, ({ request }) => {
+        method = request.method;
+        return HttpResponse.json({ ok: true, data: { deleted: true } });
+      }),
+    );
+
+    const data = await client.del<{ deleted: boolean }>("/v1/buckets/gone");
+
+    expect(method).toBe("DELETE");
+    expect(data).toEqual({ deleted: true });
+  });
+
+  it("throws ApiError on the envelope's failure arm", async () => {
+    server.use(
+      http.delete(`${BASE}/v1/buckets/full`, () =>
+        HttpResponse.json(
+          { ok: false, error: { code: "BUCKET_NOT_EMPTY", message: "Still holds secrets." } },
+          { status: 409 },
+        ),
+      ),
+    );
+
+    await expect(client.del("/v1/buckets/full")).rejects.toMatchObject({
+      name: "ApiError",
+      code: "BUCKET_NOT_EMPTY",
+      status: 409,
+    });
+  });
+
+  it("sends credentials, like every other method", async () => {
+    let credentials: RequestCredentials | undefined;
+    server.use(
+      http.delete(`${BASE}/v1/buckets/creds`, ({ request }) => {
+        credentials = request.credentials;
+        return HttpResponse.json({ ok: true, data: { deleted: true } });
+      }),
+    );
+
+    await client.del("/v1/buckets/creds");
+
+    expect(credentials).toBe("include");
+  });
+});
+
 describe("apiUrl", () => {
   it("composes a path onto the configured API base", () => {
     expect(apiUrl("/v1/auth/google/start")).toBe(`${BASE}/v1/auth/google/start`);
