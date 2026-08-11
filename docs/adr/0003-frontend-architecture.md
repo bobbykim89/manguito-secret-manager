@@ -179,3 +179,36 @@ direct navigation to a nested route returns 404. Vercel's Vite preset may supply
 this automatically; it must be confirmed on the deployed site rather than
 assumed, with a `vercel.json` rewrite added if it does not. This class of bug
 appears only in production.
+
+### A7. The URL hierarchy
+
+The bucket list is `/buckets`, a bucket is `/buckets/:name`, and API keys are
+`/keys`, so the three are siblings rather than one being a child of an
+inconsistent parent.
+
+`/` redirects to `/buckets` from inside the session guard rather than being the
+list itself. That leaves `/` free for a dashboard that may never exist, and
+avoids the inconsistency of a list at `/` whose detail pages live under
+`/buckets/:name`.
+
+The redirect uses `replace`, for the same reason the guard's does: without it
+the back button bounces between the two.
+
+### A8. The 401 handler covers mutations as well as queries
+
+SP2b installed the `UNAUTHENTICATED` handler on the `QueryCache` only, which
+fires for queries and not for mutations, and recorded the gap as safe. That was
+correct at the time: its only mutation was sign out, whose endpoint requires no
+authentication and is idempotent.
+
+It stops being safe as soon as the UI mutates real data. A user whose cookie
+expired would click a button, receive a 401, and go on looking signed in until
+some unrelated query happened to notice.
+
+**Amended:** the same handler is installed on a `MutationCache`. A 401 from any
+mutation clears the session and the route guard performs the redirect, so there
+is still one path out of the application rather than two.
+
+It carries no session-key exclusion. That exclusion exists on the query side
+only because the guard reads the session query's own error, and no mutation
+writes to that key.
