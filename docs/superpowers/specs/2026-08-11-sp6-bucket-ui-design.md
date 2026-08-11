@@ -169,9 +169,16 @@ key with nothing under it.
 When `secret_count` is above zero the button is disabled and says why, so the
 409 is explained before it can happen rather than discovered through an error.
 
-Clicking Delete swaps that row's actions for "Delete this bucket? Yes / Cancel",
-held in one piece of page-local `useState` naming which row is confirming. Not
-Zustand: this is one component's state and never leaves it.
+Clicking Delete swaps that row's actions for "Delete this bucket? Yes / Cancel".
+
+That state lives in the row, not the page. A page-level "which row is
+confirming" would need the row to receive the flag plus start, cancel, confirm,
+pending and error as props, which is seven arguments to say one thing. A row
+that owns its own confirm flag and its own mutation takes one prop, the bucket,
+and gets per-row pending and error states for free. The cost is that two rows
+could sit in confirm state at once, which is harmless.
+
+Either way it is `useState`, not Zustand: this never leaves the component.
 
 **The 409 is still handled**, because `secret_count` comes from the last fetch
 and something could have written through the API since. `BUCKET_NOT_EMPTY`
