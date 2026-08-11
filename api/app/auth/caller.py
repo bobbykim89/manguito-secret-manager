@@ -18,9 +18,12 @@ from app.models import Bucket, User
 class Caller:
     """Who is asking, and what they may do.
 
-    Holds plain values rather than the ApiKey row. The row would be expired
-    by touch_key's commit, so every later attribute read would issue a
-    refresh inside request handling. These are read once, at authentication.
+    Holds plain values rather than the ApiKey row, because touch_key commits
+    and a commit expires every instance in the session. The user is a live
+    row, deliberately, because get_bucket takes one; it is loaded after that
+    commit so it starts fresh, and it stays valid until the endpoint's own
+    commit. Anything reading it must do so before then, which is what the
+    endpoints already do.
 
     The three questions live here rather than in the endpoints so a future
     endpoint cannot answer them differently by forgetting.
@@ -87,19 +90,30 @@ def _from_bearer(session: Session, header: str) -> Caller:
     key = verify_token(session, token)
     if key is None:
         raise _refuse()
-    user = session.get(User, key.user_id)
+    # Every read of key happens before touch_key commits, which expires it.
+    user_id = key.user_id
+    api_key_id = key.id
+    can_write = key.can_write
+    can_reveal = key.can_reveal
+    scoped_bucket_ids = frozenset(row.bucket_id for row in key.buckets)
+
+    touch_key(session, key)
+
+    # Loaded after the commit rather than before, so the instance is fresh
+    # rather than expired. Carrying it across would make the first read of
+    # caller.user issue a refresh inside request handling, and a refresh that
+    # failed would report a 500 for a request whose credential use had
+    # already been committed.
+    user = session.get(User, user_id)
     if user is None:
         raise _refuse()
-    # Read before touch_key commits, which expires the instance.
-    caller = Caller(
+    return Caller(
         user=user,
-        api_key_id=key.id,
-        can_write=key.can_write,
-        can_reveal=key.can_reveal,
-        scoped_bucket_ids=frozenset(row.bucket_id for row in key.buckets),
+        api_key_id=api_key_id,
+        can_write=can_write,
+        can_reveal=can_reveal,
+        scoped_bucket_ids=scoped_bucket_ids,
     )
-    touch_key(session, key)
-    return caller
 
 
 CurrentCaller = Annotated[Caller, Depends(current_caller)]

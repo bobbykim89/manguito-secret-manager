@@ -166,8 +166,11 @@ def test_every_bad_header_gives_the_identical_401(
     caller_app: TestClient, label: str, header: str
 ) -> None:
     """One body for every failure, so nothing can be inferred from the
-    difference. The non-ASCII case is SP2's compare_digest bug reachable
-    through a header: it must be a 401, never a 500.
+    difference. The non-ASCII case guards against hash_token ever being
+    changed to compare raw strings: compare_digest raises TypeError on a str
+    containing non-ASCII, which in SP2 escaped a failure path entirely and
+    returned a 500 with a live credential still set. It is not reachable
+    today, which is the point of keeping it.
     """
     # Passed as bytes rather than str: this pinned httpx2 client encodes a
     # str header value as strict ASCII before the request is even built, so
