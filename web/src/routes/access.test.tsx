@@ -188,3 +188,49 @@ it("sends the user to login when a mutation is unauthorised", async () => {
 
   expect(await screen.findByRole("link", { name: /continue with google/i })).toBeInTheDocument();
 });
+
+it("renders a bucket's secrets at /buckets/:name", async () => {
+  signedIn();
+  server.use(
+    http.get("http://localhost:8000/v1/buckets/alpha/secrets", () =>
+      HttpResponse.json({ ok: true, data: [] }),
+    ),
+  );
+  const router = createMemoryRouter(routes, { initialEntries: ["/buckets/alpha"] });
+
+  renderWithProviders(<RouterProvider router={router} />);
+
+  expect(await screen.findByRole("heading", { name: "alpha" })).toBeInTheDocument();
+});
+
+it("keeps /buckets/:name behind the session guard", async () => {
+  signedOut();
+  const router = createMemoryRouter(routes, { initialEntries: ["/buckets/alpha"] });
+
+  renderWithProviders(<RouterProvider router={router} />);
+
+  expect(await screen.findByRole("link", { name: /continue with google/i })).toBeInTheDocument();
+});
+
+it("walks from the bucket list into a bucket", async () => {
+  signedIn();
+  server.use(
+    http.get("http://localhost:8000/v1/buckets", () =>
+      HttpResponse.json({
+        ok: true,
+        data: [{ id: "1", name: "alpha", created_at: "2026-08-11T00:00:00Z", secret_count: 1 }],
+      }),
+    ),
+    http.get("http://localhost:8000/v1/buckets/alpha/secrets", () =>
+      HttpResponse.json({ ok: true, data: [] }),
+    ),
+  );
+  const router = createMemoryRouter(routes, { initialEntries: ["/buckets"] });
+  renderWithProviders(<RouterProvider router={router} />);
+  const row = await screen.findByRole("listitem", { name: /alpha/i });
+
+  await userEvent.click(within(row).getByRole("link", { name: "alpha" }));
+
+  expect(await screen.findByRole("heading", { name: "alpha" })).toBeInTheDocument();
+  expect(router.state.location.pathname).toBe("/buckets/alpha");
+});

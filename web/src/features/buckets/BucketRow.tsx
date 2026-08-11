@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router";
 
 import { Alert } from "../../components/Alert";
 
@@ -22,7 +23,12 @@ export function BucketRow({ bucket }: { bucket: Bucket }) {
     <li aria-label={bucket.name} className="flex flex-col gap-1 border-b py-3">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <span className="font-medium">{bucket.name}</span>
+          <Link
+            to={`/buckets/${encodeURIComponent(bucket.name)}`}
+            className="font-medium underline"
+          >
+            {bucket.name}
+          </Link>
           <span className="ml-3 text-sm text-slate-600">
             {bucket.secret_count} {bucket.secret_count === 1 ? "secret" : "secrets"}
           </span>

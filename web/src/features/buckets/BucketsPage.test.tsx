@@ -1,6 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
+import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
 
 import { renderWithProviders } from "../../test/render";
@@ -26,7 +27,11 @@ function listReturns(...buckets: ReturnType<typeof aBucket>[]) {
 describe("BucketsPage", () => {
   it("shows a row per bucket with its secret count", async () => {
     listReturns(aBucket("alpha", 3), aBucket("beta", 0));
-    renderWithProviders(<BucketsPage />);
+    renderWithProviders(
+      <MemoryRouter>
+        <BucketsPage />
+      </MemoryRouter>,
+    );
 
     const alpha = await screen.findByRole("listitem", { name: /alpha/i });
 
@@ -39,7 +44,11 @@ describe("BucketsPage", () => {
 
   it("says there are no buckets rather than looking like it is still loading", async () => {
     listReturns();
-    renderWithProviders(<BucketsPage />);
+    renderWithProviders(
+      <MemoryRouter>
+        <BucketsPage />
+      </MemoryRouter>,
+    );
 
     expect(await screen.findByText(/no buckets yet/i)).toBeInTheDocument();
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
@@ -54,7 +63,11 @@ describe("BucketsPage", () => {
         ),
       ),
     );
-    renderWithProviders(<BucketsPage />);
+    renderWithProviders(
+      <MemoryRouter>
+        <BucketsPage />
+      </MemoryRouter>,
+    );
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/could not refresh/i);
   });
@@ -77,7 +90,11 @@ describe("BucketsPage", () => {
         );
       }),
     );
-    const { queryClient } = renderWithProviders(<BucketsPage />);
+    const { queryClient } = renderWithProviders(
+      <MemoryRouter>
+        <BucketsPage />
+      </MemoryRouter>,
+    );
     await screen.findByRole("listitem", { name: /stable/i });
 
     await queryClient.refetchQueries({ queryKey: BUCKETS_QUERY_KEY });
@@ -91,7 +108,11 @@ describe("BucketsPage", () => {
     // The 409 is explained before it can happen rather than discovered
     // through an error.
     listReturns(aBucket("occupied", 2));
-    renderWithProviders(<BucketsPage />);
+    renderWithProviders(
+      <MemoryRouter>
+        <BucketsPage />
+      </MemoryRouter>,
+    );
     const row = await screen.findByRole("listitem", { name: /occupied/i });
 
     expect(within(row).getByRole("button", { name: /delete/i })).toBeDisabled();
@@ -107,7 +128,11 @@ describe("BucketsPage", () => {
         return HttpResponse.json({ ok: true, data: { deleted: true } });
       }),
     );
-    renderWithProviders(<BucketsPage />);
+    renderWithProviders(
+      <MemoryRouter>
+        <BucketsPage />
+      </MemoryRouter>,
+    );
     const row = await screen.findByRole("listitem", { name: /spare/i });
 
     await userEvent.click(within(row).getByRole("button", { name: /^delete$/i }));
@@ -131,7 +156,11 @@ describe("BucketsPage", () => {
         return HttpResponse.json({ ok: true, data: { deleted: true } });
       }),
     );
-    renderWithProviders(<BucketsPage />);
+    renderWithProviders(
+      <MemoryRouter>
+        <BucketsPage />
+      </MemoryRouter>,
+    );
     const row = await screen.findByRole("listitem", { name: /spare/i });
 
     await userEvent.click(within(row).getByRole("button", { name: /^delete$/i }));
@@ -153,7 +182,11 @@ describe("BucketsPage", () => {
         ),
       ),
     );
-    renderWithProviders(<BucketsPage />);
+    renderWithProviders(
+      <MemoryRouter>
+        <BucketsPage />
+      </MemoryRouter>,
+    );
     const row = await screen.findByRole("listitem", { name: /racy/i });
 
     await userEvent.click(within(row).getByRole("button", { name: /^delete$/i }));
@@ -179,7 +212,11 @@ describe("BucketsPage", () => {
         ),
       ),
     );
-    renderWithProviders(<BucketsPage />);
+    renderWithProviders(
+      <MemoryRouter>
+        <BucketsPage />
+      </MemoryRouter>,
+    );
     const row = await screen.findByRole("listitem", { name: /racy2/i });
 
     await userEvent.click(within(row).getByRole("button", { name: /^delete$/i }));
