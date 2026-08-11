@@ -379,6 +379,11 @@ def test_a_corrupted_row_fails_without_leaking_anything(db_session: Session) -> 
 
 
 def test_reveal_is_refused(client: TestClient, db_session: Session) -> None:
+    """A session can never reveal, whatever the user owns.
+
+    ADR 003 requires that a browser cannot reach bulk reveal at all, so this
+    is refused for the credential's type rather than for a missing scope.
+    """
     with_bucket(client, db_session, "api-reveal", "revealing")
     client.put("/v1/buckets/revealing/secrets/KEY", json={"value": "v"})
 

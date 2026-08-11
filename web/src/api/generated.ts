@@ -139,10 +139,77 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/keys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Endpoint */
+        get: operations["list_endpoint_v1_keys_get"];
+        put?: never;
+        /** Create Endpoint */
+        post: operations["create_endpoint_v1_keys_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/keys/{key_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke Endpoint */
+        delete: operations["revoke_endpoint_v1_keys__key_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * ApiKeyData
+         * @description Metadata only. Never the token, never the stored hash.
+         */
+        ApiKeyData: {
+            /** Buckets */
+            buckets: string[];
+            /** Can Reveal */
+            can_reveal: boolean;
+            /** Can Write */
+            can_write: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Expires At */
+            expires_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Used At */
+            last_used_at: string | null;
+            /** Lookup Id */
+            lookup_id: string;
+            /** Name */
+            name: string;
+            /** Revoked At */
+            revoked_at: string | null;
+        };
         /**
          * BucketData
          * @description What a bucket looks like from outside.
@@ -170,6 +237,59 @@ export interface components {
         CreateBucketRequest: {
             /** Name */
             name: string;
+        };
+        /** CreateKeyRequest */
+        CreateKeyRequest: {
+            /** Buckets */
+            buckets: string[];
+            /**
+             * Can Reveal
+             * @default false
+             */
+            can_reveal: boolean;
+            /**
+             * Can Write
+             * @default false
+             */
+            can_write: boolean;
+            /** Expires At */
+            expires_at?: string | null;
+            /** Name */
+            name: string;
+        };
+        /**
+         * CreatedApiKeyData
+         * @description The one response in this API that carries a live credential.
+         */
+        CreatedApiKeyData: {
+            /** Buckets */
+            buckets: string[];
+            /** Can Reveal */
+            can_reveal: boolean;
+            /** Can Write */
+            can_write: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Expires At */
+            expires_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Used At */
+            last_used_at: string | null;
+            /** Lookup Id */
+            lookup_id: string;
+            /** Name */
+            name: string;
+            /** Revoked At */
+            revoked_at: string | null;
+            /** Token */
+            token: string;
         };
         /** DeletedData */
         DeletedData: {
@@ -228,6 +348,16 @@ export interface components {
              */
             ok: true;
         };
+        /** Ok[CreatedApiKeyData] */
+        Ok_CreatedApiKeyData_: {
+            data: components["schemas"]["CreatedApiKeyData"];
+            /**
+             * Ok
+             * @default true
+             * @constant
+             */
+            ok: true;
+        };
         /** Ok[DeletedData] */
         Ok_DeletedData_: {
             data: components["schemas"]["DeletedData"];
@@ -268,6 +398,16 @@ export interface components {
              */
             ok: true;
         };
+        /** Ok[RevokedData] */
+        Ok_RevokedData_: {
+            data: components["schemas"]["RevokedData"];
+            /**
+             * Ok
+             * @default true
+             * @constant
+             */
+            ok: true;
+        };
         /** Ok[SecretData] */
         Ok_SecretData_: {
             data: components["schemas"]["SecretData"];
@@ -281,6 +421,30 @@ export interface components {
         /** Ok[SecretValueData] */
         Ok_SecretValueData_: {
             data: components["schemas"]["SecretValueData"];
+            /**
+             * Ok
+             * @default true
+             * @constant
+             */
+            ok: true;
+        };
+        /** Ok[dict[str, str]] */
+        Ok_dict_str__str__: {
+            /** Data */
+            data: {
+                [key: string]: string;
+            };
+            /**
+             * Ok
+             * @default true
+             * @constant
+             */
+            ok: true;
+        };
+        /** Ok[list[ApiKeyData]] */
+        Ok_list_ApiKeyData__: {
+            /** Data */
+            data: components["schemas"]["ApiKeyData"][];
             /**
              * Ok
              * @default true
@@ -314,6 +478,11 @@ export interface components {
         PutSecretRequest: {
             /** Value */
             value: string;
+        };
+        /** RevokedData */
+        RevokedData: {
+            /** Revoked */
+            revoked: boolean;
         };
         /**
          * SecretData
@@ -510,7 +679,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Ok_list_SecretData__"];
+                    "application/json": components["schemas"]["Ok_list_SecretData__"] | components["schemas"]["Ok_dict_str__str__"];
                 };
             };
             /** @description Unauthorized */
@@ -644,6 +813,15 @@ export interface operations {
                     "application/json": components["schemas"]["Err"];
                 };
             };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Err"];
+                };
+            };
             /** @description Not Found */
             404: {
                 headers: {
@@ -687,6 +865,15 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Err"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -792,6 +979,135 @@ export interface operations {
             };
             /** @description Service Unavailable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Err"];
+                };
+            };
+        };
+    };
+    list_endpoint_v1_keys_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ok_list_ApiKeyData__"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Err"];
+                };
+            };
+        };
+    };
+    create_endpoint_v1_keys_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateKeyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ok_CreatedApiKeyData_"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Err"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Err"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Err"];
+                };
+            };
+        };
+    };
+    revoke_endpoint_v1_keys__key_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ok_RevokedData_"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Err"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Err"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

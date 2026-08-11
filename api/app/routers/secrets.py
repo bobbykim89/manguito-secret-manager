@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.audit import (
+    REVEAL_DENIED,
     SECRET_CREATED,
     SECRET_DELETED,
     SECRET_READ,
@@ -35,30 +36,37 @@ Provider = Annotated[KeyProvider, Depends(get_key_provider)]
 KeyName = Annotated[str, Path(pattern=KEY_NAME_PATTERN)]
 
 
-def deny_reveal(reveal: bool = False, *, caller: CurrentCaller) -> None:
+def deny_reveal(
+    bucket: Annotated[str, Path(pattern=NAME_PATTERN)],
+    caller: CurrentCaller,
+    session: Db,
+    reveal: bool = False,
+) -> None:
     """Refuse bulk reveal on the credential, before any bucket is consulted.
 
     ADR 002 A4 makes reveal a property of the credential rather than of the
     endpoint, so this is decided without touching a bucket the caller may
-    have no business knowing about.
-
-    It still refuses unconditionally: nothing here reads the caller's reveal
-    scope yet. The caller parameter is unused for that reason, and is not
-    dead. Its presence makes authentication a sub-dependency of this gate
-    rather than a sibling, which is what makes an unauthenticated request a
-    401 rather than a 403. Removing it would silently flip that back, and
-    test_reveal_is_refused_after_authentication_is_checked is what would
-    catch it.
+    have no business knowing about. A session always fails it, whatever the
+    user owns, which ADR 003 requires.
 
     Declared as a typed boolean rather than read from the query string, so a
     value that is neither true nor false is a 422 rather than a quiet falsy.
     """
-    if reveal:
-        raise ApiError(
-            "REVEAL_NOT_PERMITTED",
-            "Bulk reveal requires an API key with the reveal scope.",
-            status_code=403,
-        )
+    if not reveal or caller.may_reveal():
+        return
+    record_audit(
+        session,
+        user_id=caller.user.id,
+        api_key_id=caller.api_key_id,
+        action=REVEAL_DENIED,
+        bucket_name=bucket,
+    )
+    session.commit()
+    raise ApiError(
+        "REVEAL_NOT_PERMITTED",
+        "Bulk reveal requires an API key with the reveal scope.",
+        status_code=403,
+    )
 
 
 def resolve_bucket(
@@ -112,7 +120,7 @@ def _to_data(secret: Secret) -> SecretData:
 
 @router.get(
     "",
-    response_model=Ok[list[SecretData]],
+    response_model=Ok[list[SecretData]] | Ok[dict[str, str]],
     dependencies=[Depends(deny_reveal)],
     responses={
         401: {"model": Err},
@@ -122,11 +130,41 @@ def _to_data(secret: Secret) -> SecretData:
     },
 )
 def list_endpoint(
-    bucket: ResolvedBucket, caller: CurrentCaller, session: Db
-) -> Ok[list[SecretData]]:
-    # Deliberately not audited. Only a read of a value is a read, and
-    # auditing every page load would bury the entries that matter.
-    return Ok(data=[_to_data(secret) for secret in list_secrets(session, bucket)])
+    bucket: ResolvedBucket,
+    caller: CurrentCaller,
+    session: Db,
+    provider: Provider,
+    response: Response,
+    # Declared again here rather than taken from deny_reveal's return,
+    # because deny_reveal is a route level dependency, which is what makes
+    # it resolve before ResolvedBucket. Both read the same query parameter.
+    reveal: bool = False,
+) -> Ok[list[SecretData]] | Ok[dict[str, str]]:
+    secrets_in_bucket = list_secrets(session, bucket)
+    if not reveal:
+        # Deliberately not audited. Only a read of a value is a read, and
+        # auditing every page load would bury the entries that matter.
+        return Ok(data=[_to_data(secret) for secret in secrets_in_bucket])
+
+    # Decrypt everything before auditing anything, so a bucket with one
+    # unreadable row records no reads at all rather than a partial trail.
+    values = {
+        secret.key_name: read_secret(provider, bucket, secret) for secret in secrets_in_bucket
+    }
+    for key_name in values:
+        record_audit(
+            session,
+            user_id=caller.user.id,
+            api_key_id=caller.api_key_id,
+            action=SECRET_READ,
+            bucket_name=bucket.name,
+            key_name=key_name,
+        )
+    session.commit()
+    # Carries every plaintext in the bucket, so the same rule as a single
+    # revealed secret. See ADR 002 A21.
+    response.headers["Cache-Control"] = "no-store"
+    return Ok(data=values)
 
 
 @router.get(
