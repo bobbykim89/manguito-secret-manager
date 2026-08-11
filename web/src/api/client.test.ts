@@ -227,6 +227,75 @@ describe("client.del", () => {
   });
 });
 
+describe("client.put", () => {
+  it("sends PUT with a JSON body and returns the narrowed data", async () => {
+    let method: string | undefined;
+    let body: unknown;
+    server.use(
+      http.put(`${BASE}/v1/buckets/b/secrets/K`, async ({ request }) => {
+        method = request.method;
+        body = await request.json();
+        return HttpResponse.json({
+          ok: true,
+          data: {
+            key_name: "K",
+            created_at: "2026-08-11T00:00:00Z",
+            updated_at: "2026-08-11T00:00:00Z",
+          },
+        });
+      }),
+    );
+
+    const data = await client.put<{ key_name: string }>("/v1/buckets/b/secrets/K", {
+      value: "s3cr3t",
+    });
+
+    expect(method).toBe("PUT");
+    expect(body).toEqual({ value: "s3cr3t" });
+    expect(data.key_name).toBe("K");
+  });
+
+  it("throws ApiError on the envelope's failure arm", async () => {
+    server.use(
+      http.put(`${BASE}/v1/buckets/b/secrets/BIG`, () =>
+        HttpResponse.json(
+          { ok: false, error: { code: "VALIDATION_ERROR", message: "value is too large" } },
+          { status: 422 },
+        ),
+      ),
+    );
+
+    await expect(
+      client.put("/v1/buckets/b/secrets/BIG", { value: "x" }),
+    ).rejects.toMatchObject({
+      name: "ApiError",
+      code: "VALIDATION_ERROR",
+      status: 422,
+    });
+  });
+
+  it("sends credentials, like every other method", async () => {
+    let credentials: RequestCredentials | undefined;
+    server.use(
+      http.put(`${BASE}/v1/buckets/b/secrets/C`, ({ request }) => {
+        credentials = request.credentials;
+        return HttpResponse.json({
+          ok: true,
+          data: {
+            key_name: "C",
+            created_at: "2026-08-11T00:00:00Z",
+            updated_at: "2026-08-11T00:00:00Z",
+          },
+        });
+      }),
+    );
+
+    await client.put("/v1/buckets/b/secrets/C", { value: "x" });
+
+    expect(credentials).toBe("include");
+  });
+});
+
 describe("apiUrl", () => {
   it("composes a path onto the configured API base", () => {
     expect(apiUrl("/v1/auth/google/start")).toBe(`${BASE}/v1/auth/google/start`);
