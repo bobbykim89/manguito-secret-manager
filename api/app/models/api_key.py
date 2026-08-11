@@ -1,7 +1,16 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, LargeBinary, Text, func, text
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    LargeBinary,
+    Text,
+    UniqueConstraint,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -25,6 +34,7 @@ class ApiKey(Base):
     """
 
     __tablename__ = "api_keys"
+    __table_args__ = (UniqueConstraint("lookup_id", name="uq_api_keys_lookup_id"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
@@ -34,7 +44,7 @@ class ApiKey(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    lookup_id: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
+    lookup_id: Mapped[str] = mapped_column(Text, nullable=False)
     token_hash: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     can_write: Mapped[bool] = mapped_column(Boolean, nullable=False)
