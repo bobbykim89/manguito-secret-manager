@@ -7,8 +7,8 @@ programmatic API for CI pipelines.
 > envelope encryption, scoped API keys, a web UI covering all three, and an
 > audit trail with no viewer of its own yet.
 >
-> **Deployed nowhere.** The Fly and Vercel configuration is written and has
-> never been applied, pending a domain.
+> **Deployed nowhere.** The Fly configuration is written and has never been
+> applied, pending a domain. Vercel is not configured at all yet.
 >
 > **Deliberately not built yet:** per-key rate limiting, security headers, and
 > a KEK rotation CLI. Rate limiting is deferred in ADR 002 A7, which rules out
@@ -28,8 +28,8 @@ everything unattended: a key names the buckets it may reach and whether it may
 write or bulk-read, and only its SHA-256 hash is stored, so a leaked database
 does not yield a working credential.
 
-Every read, write and deletion is recorded against the credential that
-performed it. A read that cannot be audited is refused rather than served
+Every read of a value, write and deletion is recorded against the credential
+that performed it. A read that cannot be audited is refused rather than served
 silently, because a secret manager that quietly serves unlogged reads has lost
 the point of the log.
 
@@ -145,6 +145,13 @@ Requires Docker, [uv](https://docs.astral.sh/uv/), Node 22+, and
 cp .env.example .env
 cp web/.env.example web/.env.local
 make install
+```
+
+`.env` ships with `SECRETS_KEKS` empty; generate a KEK and set it along with
+`SECRETS_KEK_VERSION` before continuing (see the environment variable table
+under Authentication, below), then run:
+
+```bash
 make dev
 ```
 
@@ -154,7 +161,7 @@ Then open <http://localhost:5173>.
 |---|---|
 | `make help` | List the targets |
 | `make install` | Install backend and frontend dependencies |
-| `make dev` | Postgres, API with reload, Vite dev server. Runs `migrate` first, so a root `.env` has to exist or it exits with a pydantic `ValidationError` |
+| `make dev` | Postgres, API with reload, Vite dev server. Runs `migrate` first, so a missing or incomplete root `.env` exits with a `ConfigurationError` |
 | `make test` | pytest and vitest |
 | `make lint` | ruff, mypy, eslint, tsc |
 | `make types` | Regenerate `web/src/api/generated.ts` |
@@ -285,8 +292,8 @@ endpoint might forget, it is never read.
 
 With the write scope it can permanently destroy the secrets in its scope, since
 there is no versioning to fall back on. Withhold that scope from a pipeline
-that only reads. Every read it performs is recorded against it in the audit
-log.
+that only reads. Every read of a value it performs is recorded against it in
+the audit log.
 
 **A compromised application server.** RCE on the API process means the KEK, and
 therefore everything. This is equally true of AWS Secrets Manager, Doppler and
