@@ -218,3 +218,29 @@ def test_the_five_hundred_still_leaks_nothing(migrated_engine: object) -> None:
     assert "hunter2-should-never-reach-the-client" not in response.text
     assert "Traceback" not in response.text
     assert "RuntimeError" not in response.text
+
+
+def test_a_revealed_secret_is_still_not_cacheable(client: TestClient) -> None:
+    """The response that used to set no-store by hand, at secrets.py.
+
+    ADR 002 A21 records that GET on a secret is not safe in the HTTP sense,
+    because it writes an audit row. This is what says so on the wire, and it
+    has to keep saying it after the per route line is removed.
+
+    A 401 exercises the same route without needing a session, a bucket, a
+    secret and a KEK. The header comes from the middleware either way, which
+    is exactly the property being pinned.
+    """
+    response = client.get("/v1/buckets/prod/secrets/DATABASE_URL")
+
+    assert response.headers["Cache-Control"] == "no-store"
+
+
+def test_the_key_creation_route_is_still_not_cacheable(client: TestClient) -> None:
+    """The response that used to set no-store by hand, at api_keys.py.
+
+    It carries the one live credential this API ever returns.
+    """
+    response = client.post("/v1/keys", json={"name": "n", "buckets": ["b"]})
+
+    assert response.headers["Cache-Control"] == "no-store"
