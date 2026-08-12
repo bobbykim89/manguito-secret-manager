@@ -241,7 +241,9 @@ the stale one it replaces, because staleness is obvious and inaccuracy is not.
     names the peers for which that is equally true.
 13. The authentication section is materially shorter and defers setup detail
     to `docs/google-oauth-setup.md`.
-14. No file outside `README.md` changes, except this spec and the plan.
+14. No file under `api/` or `web/` changes. The only files touched are
+    `README.md`, the two ADRs carrying the amendment below, this spec, and the
+    plan.
 15. `make lint` and `make test` pass unchanged, and `make types` produces no
     diff, since no code is touched.
 16. Every endpoint, error code, environment variable and `make` target named
