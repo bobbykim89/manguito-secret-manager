@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { client, type ApiError } from "../../api/client";
 import type { components } from "../../api/generated";
+import { API_KEYS_QUERY_KEY } from "../api-keys/useApiKeys";
 
 export type Bucket = components["schemas"]["BucketData"];
 type Deleted = components["schemas"]["DeletedData"];
@@ -34,6 +35,15 @@ export function useDeleteBucket() {
     mutationFn: (name) => client.del<Deleted>(`/v1/buckets/${encodeURIComponent(name)}`),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: BUCKETS_QUERY_KEY });
+      // api_key_buckets cascades, so deleting a bucket silently shrinks the
+      // scope of every key that named it.
+      //
+      // No click driven test can falsify this line: /buckets and /keys are
+      // mutually exclusive routes and the key list's staleTime is 0, so a
+      // walk-through refetches on mount either way. Its test asserts
+      // isInvalidated on the cache directly, which is the only assertion that
+      // fails when this line is removed.
+      void queryClient.invalidateQueries({ queryKey: API_KEYS_QUERY_KEY });
     },
     onError: (error) => {
       // A stale secret_count is the only way this happens, so the row is
