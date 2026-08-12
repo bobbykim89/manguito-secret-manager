@@ -7,6 +7,9 @@ suggests a protection that is not present.
 """
 
 from fastapi import Response
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.requests import Request
+from starlette.types import ASGIApp
 
 from app.config import Settings
 
@@ -43,3 +46,26 @@ def apply_security_headers(response: Response, settings: Settings) -> None:
     # than for risk: a browser ignores HSTS over plain http regardless.
     if settings.is_production:
         response.headers[HSTS_HEADER] = HSTS_VALUE
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Applies the headers to everything that comes back through the stack.
+
+    BaseHTTPMiddleware buffers responses, which would break streaming. This
+    API has none: every response is a small JSON envelope.
+
+    It does not cover a 500 from unhandled_exception_handler. Starlette routes
+    the handler registered for Exception into ServerErrorMiddleware, which
+    sits outside all user middleware, so that response never passes back
+    through here. A later change closes that gap by calling the same function
+    from envelope.py.
+    """
+
+    def __init__(self, app: ASGIApp, settings: Settings) -> None:
+        super().__init__(app)
+        self.settings = settings
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        response = await call_next(request)
+        apply_security_headers(response, self.settings)
+        return response

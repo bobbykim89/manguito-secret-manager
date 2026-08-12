@@ -1,6 +1,12 @@
+from collections.abc import Iterator
+
+import pytest
 from fastapi import Response
+from fastapi.testclient import TestClient
+from starlette.routing import BaseRoute
 
 from app.config import Settings
+from app.main import app
 from app.security_headers import (
     HSTS_HEADER,
     HSTS_VALUE,
@@ -91,3 +97,71 @@ def test_the_ungated_set_is_exactly_three() -> None:
         "Referrer-Policy",
         "Cache-Control",
     }
+
+
+@pytest.mark.parametrize(
+    ("path", "expected_status"),
+    [
+        ("/v1/health", 200),
+        ("/v1/buckets", 401),
+        ("/v1/nosuchroute", 404),
+    ],
+)
+def test_headers_are_on_every_ordinary_response(
+    client: TestClient, path: str, expected_status: int
+) -> None:
+    """A 200, an authentication failure, and a route that does not exist.
+
+    The 401 and 404 matter as much as the 200: they are rendered by exception
+    handlers rather than by a route, and a middleware that only covered
+    successful responses would still pass a test that checked one 200.
+    """
+    response = client.get(path)
+
+    assert response.status_code == expected_status
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["Referrer-Policy"] == "no-referrer"
+    assert response.headers["Cache-Control"] == "no-store"
+
+
+@pytest.fixture
+def echo_route() -> Iterator[None]:
+    """A route with a required query parameter, so 422 can be reached.
+
+    Copied from the fixture of the same name in test_errors.py, for the same
+    reason it exists there. Every real route that validates a path parameter
+    also requires a session, so an unauthenticated request to one returns 401
+    from the auth dependency and never reaches validation_error_handler at
+    all. A throwaway route with no auth is the only way to exercise the 422
+    path without building a signed in session.
+    """
+
+    def echo(count: int) -> dict[str, int]:
+        return {"count": count}
+
+    before: list[BaseRoute] = list(app.router.routes)
+    app.add_api_route("/v1/echo", echo, methods=["GET"])
+    app.openapi_schema = None
+    try:
+        yield
+    finally:
+        app.router.routes[:] = before
+        app.openapi_schema = None
+
+
+def test_headers_are_on_a_validation_failure(client: TestClient, echo_route: None) -> None:
+    # 422 comes from validation_error_handler, a fourth distinct path.
+    response = client.get("/v1/echo?count=not-a-number")
+
+    assert response.status_code == 422
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["Cache-Control"] == "no-store"
+
+
+def test_hsts_is_absent_in_the_test_environment(client: TestClient) -> None:
+    # conftest sets ENVIRONMENT=test, which is_production treats as
+    # non-production. This pins that the gate is read at request time from
+    # real settings rather than hardcoded on.
+    response = client.get("/v1/health")
+
+    assert HSTS_HEADER not in response.headers

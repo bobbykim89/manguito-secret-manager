@@ -12,6 +12,7 @@ from app.envelope import (
     validation_error_handler,
 )
 from app.routers import api_keys, auth, buckets, health, secrets
+from app.security_headers import SecurityHeadersMiddleware
 
 
 def create_app() -> FastAPI:
@@ -30,6 +31,10 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    # After CORS, so this file reads as "who may call this", then "what the
+    # browser does with what comes back". The two set disjoint header names,
+    # so the order does not matter functionally.
+    application.add_middleware(SecurityHeadersMiddleware, settings=settings)
     # Every error path renders the ADR 002 envelope, not just the ones the
     # application raises. A client that has to parse two shapes loses the
     # error code on exactly the failures it most needs to report.
