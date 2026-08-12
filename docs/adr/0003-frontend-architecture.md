@@ -19,7 +19,7 @@ That goal shapes the stack choice: maximize React-specific practice per hour, ra
 | Language | TypeScript, strict |
 | Styling | TailwindCSS |
 | Server state | TanStack Query |
-| Client state | Zustand |
+| Client state | None. See A11. |
 | Validation | Zod |
 | Forms | React Hook Form with Zod resolver |
 | Testing | Vitest, React Testing Library, MSW |
@@ -260,3 +260,40 @@ while the document has focus, so a timed clear fails precisely when the user has
 switched to the application they meant to paste into. A guarantee that does not
 hold in its main case is worse than none, and the audit log is the real record
 of who read what.
+
+### A11. Zustand is removed from the stack
+
+A5 named its first consumer as reveal toggles. A9 corrected that once SP7
+showed reveal state is ephemeral and component local, and said that if SP8
+found no client state either, Zustand should be removed rather than left
+waiting indefinitely.
+
+SP8 found none. The show once token is a mutation result plus the panel's own
+existence, revoke confirm is row local, the form is React Hook Form, and
+navigation state is `NavLink`'s. Three sub-projects have now each concluded
+that state they expected to be global belongs in a component.
+
+**Amended:** the frontend ships v1 with no client state library. TanStack
+Query owns server state and `useState` owns the rest.
+
+Worth being exact about what this cost: Zustand was never actually installed,
+because A5 deferred it to a first real consumer that never arrived. The waste
+was three sub-projects of planning around a dependency, not of shipping one.
+If a genuine consumer appears later, adding a store then is a smaller change
+than this removal was.
+
+### A12. The show once token is named under A10's clipboard exception
+
+A10 permits copying a revealed secret to the clipboard, and is written about
+revealed secrets specifically. The API key token is a different object and the
+only other live credential this UI displays, so inferring that A10 stretches
+to cover it would be crediting a rule with work it does not do.
+
+**Amended:** copying the token is permitted on the same terms and for the same
+reason. Nothing clears the clipboard afterwards.
+
+The token is otherwise subject to invariant 8 in full. It reaches no storage,
+no URL state and no error payload, and it exists in memory only as the create
+mutation's `data`, until `reset()` on acknowledgement or garbage collection on
+unmount removes it. The panel that displays it also arms the only guards
+against losing it, so those cannot outlive the credential they protect.
