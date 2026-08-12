@@ -116,5 +116,11 @@ export const client = {
             headers: { "Content-Type": "application/json" },
           },
     ),
+  put: <T>(path: string, body: unknown): Promise<T> =>
+    request<T>(path, {
+      method: "PUT",
+      body: JSON.stringify(body),
+      headers: { "Content-Type": "application/json" },
+    }),
   del: <T>(path: string): Promise<T> => request<T>(path, { method: "DELETE" }),
 };

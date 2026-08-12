@@ -1,6 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 
+import { Alert } from "../../components/Alert";
+
 import { bucketNameSchema, type BucketNameValues } from "./bucketName";
 import { useCreateBucket } from "./useBuckets";
 
@@ -53,16 +55,8 @@ export function CreateBucketForm() {
           Create
         </button>
       </div>
-      {errors.name && (
-        <p role="alert" className="text-sm text-red-700">
-          {errors.name.message}
-        </p>
-      )}
-      {errors.root && (
-        <p role="alert" className="text-sm text-red-700">
-          {errors.root.message}
-        </p>
-      )}
+      {errors.name && <Alert variant="inline">{errors.name.message}</Alert>}
+      {errors.root && <Alert variant="inline">{errors.root.message}</Alert>}
     </form>
   );
 }

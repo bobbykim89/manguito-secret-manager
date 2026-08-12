@@ -1,5 +1,7 @@
 import { Outlet } from "react-router";
 
+import { Alert } from "../../components/Alert";
+
 import { useSession } from "../auth/useSession";
 import { useSignOut } from "../auth/useSignOut";
 
@@ -36,9 +38,9 @@ export function AppShell() {
       </header>
 
       {signOut.isError && (
-        <p role="alert" className="mx-6 mt-4 rounded border border-red-300 bg-red-50 p-3 text-sm">
-          Could not sign out. Please try again.
-        </p>
+        <div className="mx-6 mt-4">
+          <Alert>Could not sign out. Please try again.</Alert>
+        </div>
       )}
 
       <main className="mx-auto max-w-2xl p-8">

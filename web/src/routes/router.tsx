@@ -4,6 +4,7 @@ import { LoginPage } from "../features/auth/LoginPage";
 import { RequireSession } from "../features/auth/RequireSession";
 import { BucketsPage } from "../features/buckets/BucketsPage";
 import { HealthPage } from "../features/health/HealthPage";
+import { SecretsPage } from "../features/secrets/SecretsPage";
 import { AppShell } from "../features/shell/AppShell";
 import { NotFound } from "./NotFound";
 
@@ -29,6 +30,9 @@ export const routes: RouteObject[] = [
           // button does not bounce between / and /buckets.
           { index: true, element: <Navigate to="/buckets" replace /> },
           { path: "/buckets", element: <BucketsPage /> },
+          // ADR 003 A7 again: a sibling of /buckets, not a child of an
+          // inconsistent parent.
+          { path: "/buckets/:name", element: <SecretsPage /> },
         ],
       },
     ],
