@@ -10,8 +10,8 @@ programmatic API for CI pipelines.
 > **Deployed nowhere.** The Fly configuration is written and has never been
 > applied, pending a domain. Vercel is not configured at all yet.
 >
-> **Deliberately not built yet:** per-key rate limiting, security headers, and
-> a KEK rotation CLI. Rate limiting is deferred in ADR 002 A7, which rules out
+> **Deliberately not built yet:** per-key rate limiting and a KEK rotation
+> CLI. Rate limiting is deferred in ADR 002 A7, which rules out
 > an in-process counter because Fly stops the machine and resets it. Each
 > remaining piece gets a spec before it gets code, in
 > [`docs/superpowers/specs/`](docs/superpowers/specs/).

@@ -3,6 +3,7 @@ from collections.abc import Iterator
 import pytest
 from fastapi import Response
 from fastapi.testclient import TestClient
+from sqlalchemy import Engine
 from starlette.routing import BaseRoute
 
 from app.config import Settings
@@ -76,12 +77,14 @@ def test_hsts_does_not_ask_for_preload() -> None:
 
 
 def test_no_html_rendering_headers_are_set() -> None:
-    """Nothing renders this API's responses as HTML.
+    """Absent even though /docs and /redoc do render real HTML.
 
     CSP, X-Frame-Options and Permissions-Policy constrain how a browser
-    renders a document. Setting them here would be decoration a header
-    scanner rewards rather than a control doing work, so their absence is
-    pinned rather than left to drift in later.
+    renders a document. FastAPI's default /docs and /redoc serve real HTML
+    and pull Swagger UI's assets from a CDN, so it isn't that nothing here
+    renders HTML: a CSP strict enough to matter would need to accommodate
+    that CDN dependency, which is more design work than this piece scoped.
+    Their absence is pinned rather than left to drift in later.
     """
     response = Response()
 
@@ -168,7 +171,7 @@ def test_hsts_is_absent_in_the_test_environment(client: TestClient) -> None:
     assert HSTS_HEADER not in response.headers
 
 
-def test_headers_are_on_an_unhandled_five_hundred(migrated_engine: object) -> None:
+def test_headers_are_on_an_unhandled_five_hundred(migrated_engine: Engine) -> None:
     """The one response that does not pass through the middleware.
 
     Starlette puts the Exception handler in ServerErrorMiddleware, outside
@@ -197,7 +200,7 @@ def test_headers_are_on_an_unhandled_five_hundred(migrated_engine: object) -> No
     assert response.headers["Cache-Control"] == "no-store"
 
 
-def test_the_five_hundred_still_leaks_nothing(migrated_engine: object) -> None:
+def test_the_five_hundred_still_leaks_nothing(migrated_engine: Engine) -> None:
     """Guards the edit in Task 3 against weakening invariant 1.
 
     envelope.py's 500 handler is being modified, and the property that matters
@@ -239,8 +242,61 @@ def test_a_revealed_secret_is_still_not_cacheable(client: TestClient) -> None:
 def test_the_key_creation_route_is_still_not_cacheable(client: TestClient) -> None:
     """The response that used to set no-store by hand, at api_keys.py.
 
-    It carries the one live credential this API ever returns.
+    A 401 exercises the same route without needing a session, matching the
+    pattern above. The real 201 carrying a live token is covered by
+    test_api_keys_api.py; this test only needs to prove the header survives
+    on this route, which the middleware does regardless of status code.
     """
     response = client.post("/v1/keys", json={"name": "n", "buckets": ["b"]})
+
+    assert response.status_code == 401
+    assert response.headers["Cache-Control"] == "no-store"
+
+
+def test_headers_are_on_a_cors_preflight_response(client: TestClient) -> None:
+    """CORSMiddleware short-circuits preflight OPTIONS without calling the
+    inner app, so whichever of CORS and SecurityHeadersMiddleware is
+    outermost decides whether a preflight response carries these headers.
+    SecurityHeadersMiddleware is registered second in main.py, which
+    Starlette's add_middleware makes outermost. This pins that the resulting
+    order actually produces headers on preflight responses, rather than
+    trusting the comment in main.py.
+    """
+    response = client.options(
+        "/v1/health",
+        headers={
+            "Origin": "http://localhost:5173",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["Referrer-Policy"] == "no-referrer"
+    assert response.headers["Cache-Control"] == "no-store"
+
+
+def test_no_store_overwrites_a_route_that_tries_to_set_its_own_cache_control() -> None:
+    """Proves the invariant is enforced by construction, not by convention.
+
+    apply_security_headers overwrites unconditionally rather than using
+    setdefault. Nothing else in this suite would catch a regression from
+    overwrite to setdefault, since no other test has a route that tries to
+    set a conflicting Cache-Control.
+    """
+
+    def conflicting(response: Response) -> dict[str, bool]:
+        response.headers["Cache-Control"] = "max-age=3600"
+        return {"ok": True}
+
+    before: list[BaseRoute] = list(app.router.routes)
+    app.add_api_route("/v1/conflicting-cache-control", conflicting, methods=["GET"])
+    app.openapi_schema = None
+    try:
+        with TestClient(app) as one_off_client:
+            response = one_off_client.get("/v1/conflicting-cache-control")
+    finally:
+        app.router.routes[:] = before
+        app.openapi_schema = None
 
     assert response.headers["Cache-Control"] == "no-store"

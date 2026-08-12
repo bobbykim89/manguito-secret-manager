@@ -48,11 +48,15 @@ will also touch.
 Each with a reason, rather than by omission:
 
 - **Content-Security-Policy, X-Frame-Options, Permissions-Policy.** These
-  constrain how a browser renders HTML. This API renders no HTML, serves no
-  static files, and is consumed by `fetch` and by `curl`. Setting them would
-  be decoration a header scanner rewards rather than a control that does
-  work, and this project's standard is not to credit a control with work it
-  does not do.
+  constrain how a browser renders HTML. Nearly everything this API serves is
+  consumed by `fetch` and by `curl`, with one exception: FastAPI's default
+  `/docs` and `/redoc` do serve real HTML and load Swagger UI's assets from a
+  CDN, which is exactly the surface CSP is meant to address. A CSP strict
+  enough to matter would need to accommodate that CDN dependency, which is
+  more design work than this piece scoped, so it is left out here rather than
+  shipped half-considered. `docs_url=None` in production is a real follow-up
+  worth its own decision later, but it is a behaviour change, not a header,
+  and is not part of this piece.
 - **The SPA's own headers.** Vercel serves the frontend and is not configured
   at all yet. Different deploy target, different piece.
 - **HSTS `preload`.** Submitting a domain to the browser preload list is a
@@ -127,10 +131,13 @@ application, which is exactly how `tests/test_auth_cookies.py` already tests
 the `Secure` flag.
 
 `main.py` gains a `SecurityHeadersMiddleware` registration beside the existing
-CORS one. Order between the two does not matter functionally, since they set
-disjoint header names. It is registered after CORS so the file reads
-top to bottom as "who may call this", then "what the browser does with what
-comes back".
+CORS one. Order between the two is load-bearing, not stylistic: verified by
+probe, `CORSMiddleware` short-circuits a preflight `OPTIONS` request without
+calling the inner app, so whichever of the two is outermost decides whether
+preflight responses carry these headers. `SecurityHeadersMiddleware` is
+registered after CORS, which Starlette's `add_middleware` makes outermost,
+and that also happens to be the order in which the file reads top to bottom
+as "who may call this", then "what the browser does with what comes back".
 
 The middleware form is left to the plan. `BaseHTTPMiddleware` is the simpler
 one and its usual objection does not apply here: it buffers responses, which
@@ -247,9 +254,12 @@ this design does not anticipate one.
 
 **A global `no-store` could mask a future caching decision.** If a genuinely
 cacheable endpoint is ever added, a public key set or an OpenAPI document,
-the global default silently makes it uncacheable and the author has to notice
-and override. Accepted: for a secret manager the safe default is the correct
-one, and the override is one line at the route that wants it.
+the global default makes it uncacheable and there is no override today:
+apply_security_headers overwrites unconditionally, so a route setting its
+own Cache-Control is simply overwritten. Accepted: for a secret manager the
+safe default is the correct one, and building an override mechanism before
+anything needs one would be speculative. If a genuinely cacheable endpoint
+is ever added, this is the line to revisit.
 
 **The `envelope.py` call site is deletable-looking.** It exists only because of
 a Starlette stack ordering detail invisible at that line. The comment and the

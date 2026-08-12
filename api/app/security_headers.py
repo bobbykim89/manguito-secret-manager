@@ -1,9 +1,13 @@
 """Response headers applied to every response this API sends.
 
-Deliberately short. CSP, X-Frame-Options and Permissions-Policy are not here:
-they constrain how a browser renders a document, and nothing renders these
-JSON responses as one. A header that does no work is not free, because it
-suggests a protection that is not present.
+Deliberately short. CSP, X-Frame-Options and Permissions-Policy are not here.
+FastAPI's default /docs and /redoc endpoints do serve real HTML and pull
+Swagger UI's assets from a CDN, so the premise that nothing here renders HTML
+is not quite true. A CSP strict enough to matter would break that CDN
+dependency, and the better fix is probably docs_url=None in production,
+which is a separate change. A header that does no work is not free, because
+it suggests a protection that is not present, so these stay out until that
+decision is made deliberately rather than by default.
 """
 
 from fastapi import Response
@@ -57,8 +61,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     It does not cover a 500 from unhandled_exception_handler. Starlette routes
     the handler registered for Exception into ServerErrorMiddleware, which
     sits outside all user middleware, so that response never passes back
-    through here. A later change closes that gap by calling the same function
-    from envelope.py.
+    through here. unhandled_exception_handler in envelope.py closes that gap by
+    calling apply_security_headers directly.
     """
 
     def __init__(self, app: ASGIApp, settings: Settings) -> None:
