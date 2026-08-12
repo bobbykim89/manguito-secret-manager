@@ -4,8 +4,8 @@ A self-hosted secret manager: encrypted key/value storage with a web UI and a
 programmatic API for CI pipelines.
 
 > **Status:** feature complete and tested end to end. Buckets, secrets with
-> envelope encryption, scoped API keys, an audit trail, and a web UI covering
-> all of it.
+> envelope encryption, scoped API keys, a web UI covering all three, and an
+> audit trail with no viewer of its own yet.
 >
 > **Deployed nowhere.** The Fly and Vercel configuration is written and has
 > never been applied, pending a domain.
