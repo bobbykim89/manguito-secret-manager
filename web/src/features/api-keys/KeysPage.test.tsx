@@ -96,6 +96,21 @@ describe("KeysPage", () => {
     expect(await screen.findByRole("button", { name: /create key/i })).toBeInTheDocument();
   });
 
+  it("surfaces a bucket list fetch failure instead of showing nothing", async () => {
+    server.use(
+      http.get(`${BASE}/v1/buckets`, () =>
+        HttpResponse.json(
+          { ok: false, error: { code: "INTERNAL_ERROR", message: "Boom." } },
+          { status: 500 },
+        ),
+      ),
+      http.get(`${BASE}/v1/keys`, () => HttpResponse.json({ ok: true, data: [] })),
+    );
+    renderPage();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/could not refresh your buckets/i);
+  });
+
   it("keeps a loaded list on screen through a failed background refetch", async () => {
     bucketsReturn(["prod"]);
     let calls = 0;

@@ -12,6 +12,10 @@ export function KeysPage() {
     <section className="flex flex-col gap-6">
       <h1 className="text-xl font-semibold">API keys</h1>
 
+      {buckets.isError && (
+        <Alert>Could not refresh your buckets. {buckets.error.message}</Alert>
+      )}
+
       {/* Gated on data existing, not merely rendered with a fallback of []:
           useBuckets is undefined while pending, and an empty array would show
           the "create a bucket first" state to an account that has plenty. */}
