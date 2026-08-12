@@ -99,7 +99,7 @@ describe("useCreateApiKey", () => {
         ),
       ),
     );
-    const { wrapper } = harness();
+    const { queryClient, wrapper } = harness();
 
     const { result } = renderHook(() => useCreateApiKey(), { wrapper });
     result.current.mutate({
@@ -114,6 +114,11 @@ describe("useCreateApiKey", () => {
     result.current.reset();
 
     await waitFor(() => expect(result.current.data).toBeUndefined());
+    // The observer clearing its own view isn't enough: without gcTime: 0 the
+    // token would still sit in the MutationCache for the default five minute
+    // gcTime after reset() drops the last observer. Assert the cache itself
+    // is empty, not just what this hook currently renders.
+    await waitFor(() => expect(queryClient.getMutationCache().getAll()).toHaveLength(0));
   });
 });
 

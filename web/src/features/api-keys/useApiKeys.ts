@@ -32,6 +32,11 @@ export function useCreateApiKey() {
   const queryClient = useQueryClient();
   return useMutation<CreatedApiKey, ApiError, CreateKeyBody>({
     mutationFn: (body) => client.post<CreatedApiKey>("/v1/keys", body),
+    // gcTime: 0 so reset() (called on acknowledgement) actually removes the
+    // token from the mutation cache rather than leaving it for the default
+    // five minute gcTime. This mutation's data is the app's only live
+    // credential, so "reset means gone" should be true, not eventually true.
+    gcTime: 0,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: API_KEYS_QUERY_KEY });
     },
