@@ -624,3 +624,20 @@ can append one `reveal.denied` row per request naming any well formed bucket
 string it invents. That is the correct trade for keeping the refusal
 independent of a resource the caller was never entitled to ask about, and the
 resulting log growth is bounded by the same rate limiting A7 defers.
+
+### A28. The README's threat model follows A19, not the body above it
+
+The threat model section opens "This belongs verbatim in the README." A19 then
+narrowed its central claim, and this document's own convention is that
+amendments override the body above them, so copying the body verbatim would
+publish an overclaim that SP3's review already caught.
+
+**Amended:** the body's instruction is superseded by A19's own summary. The
+README distinguishes an attacker with read access to Postgres, who obtains
+nothing usable, from one with write access, who can deny service and reassign
+bucket ownership but still cannot read a value.
+
+The README also covers a leaked API key, which the body omits entirely and
+which A25 settled: the secret endpoints only, inside its scope, with permanent
+destruction available under the write scope and no route to bucket deletion or
+key issuance.
