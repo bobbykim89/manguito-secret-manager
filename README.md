@@ -257,8 +257,48 @@ Currently 346 backend tests and 242 frontend tests.
 
 ## Threat model
 
-Will be written up here in SP4, once there is something encrypted to reason
-about. The short version, from ADR 002: secret values are encrypted with
-AES-256-GCM under a per-bucket data key, itself wrapped by a key-encryption key
-held outside the database. This protects against a stolen backup or a database
-dump; it does not protect against a fully compromised application server.
+**A stolen database.** A backup, a SQL injection dump, a leaked snapshot, or an
+insider with read access to Postgres. All of them obtain ciphertext and wrapped
+data keys and nothing usable, because the key that unwraps them is in the
+environment rather than the database. This is the case the whole design exists
+for.
+
+**Write access to the database.** Still cannot read a value, and cannot
+relocate a ciphertext: moving a wrapped DEK to another bucket, editing a
+bucket's id, forging a key version, or truncating a wrapped value all fail
+closed rather than decrypting to something.
+
+It can deny service, and it can reassign a bucket's ownership, because nothing
+binds a bucket to its owner. That is deliberate: the same attacker can insert a
+session row for any user and read through the front door, so binding the owner
+into the encryption would buy nothing against them while making ownership
+permanently immutable, since changing it would make every secret in the bucket
+undecryptable. The binding prevents ciphertext relocation, not database
+tampering in general.
+
+**A leaked API key**, which is the credential most likely to leak, because it
+lives in CI. It reaches the secret endpoints only, and only inside the buckets
+it was scoped to. It cannot delete a bucket and it cannot issue another key:
+those endpoints resolve a session and never read the `Authorization` header at
+all, so a key presented to them is not refused by a check that a future
+endpoint might forget, it is never read.
+
+With the write scope it can permanently destroy the secrets in its scope, since
+there is no versioning to fall back on. Withhold that scope from a pipeline
+that only reads. Every read it performs is recorded against it in the audit
+log.
+
+**A compromised application server.** RCE on the API process means the KEK, and
+therefore everything. This is equally true of AWS Secrets Manager, Doppler and
+Infisical, and no amount of encryption at rest changes it.
+
+### Why not zero-knowledge
+
+Client-side encryption under a passphrase-derived key would take the operator
+out of the trust boundary, and is structurally incompatible with unattended
+programmatic access. A CI pipeline calling
+`GET /v1/buckets/prod/secrets/DATABASE_URL` presents an API key and nothing
+else; there is no passphrase in that request for the server to derive a key
+from. Doppler, Infisical and AWS Secrets Manager all made the same trade for
+the same reason. 1Password is zero-knowledge and correspondingly has no
+equivalent endpoint.
