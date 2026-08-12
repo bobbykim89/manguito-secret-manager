@@ -234,3 +234,41 @@ it("walks from the bucket list into a bucket", async () => {
   expect(await screen.findByRole("heading", { name: "alpha" })).toBeInTheDocument();
   expect(router.state.location.pathname).toBe("/buckets/alpha");
 });
+
+it("renders the API keys page at /keys", async () => {
+  signedIn();
+  server.use(
+    http.get("http://localhost:8000/v1/keys", () => HttpResponse.json({ ok: true, data: [] })),
+    http.get("http://localhost:8000/v1/buckets", () => HttpResponse.json({ ok: true, data: [] })),
+  );
+  const router = createMemoryRouter(routes, { initialEntries: ["/keys"] });
+
+  renderWithProviders(<RouterProvider router={router} />);
+
+  expect(await screen.findByRole("heading", { name: /api keys/i })).toBeInTheDocument();
+});
+
+it("keeps /keys behind the session guard", async () => {
+  signedOut();
+  const router = createMemoryRouter(routes, { initialEntries: ["/keys"] });
+
+  renderWithProviders(<RouterProvider router={router} />);
+
+  expect(await screen.findByRole("link", { name: /continue with google/i })).toBeInTheDocument();
+});
+
+it("walks from the bucket list to the keys page through the nav bar", async () => {
+  signedIn();
+  server.use(
+    http.get("http://localhost:8000/v1/buckets", () => HttpResponse.json({ ok: true, data: [] })),
+    http.get("http://localhost:8000/v1/keys", () => HttpResponse.json({ ok: true, data: [] })),
+  );
+  const router = createMemoryRouter(routes, { initialEntries: ["/buckets"] });
+  renderWithProviders(<RouterProvider router={router} />);
+  await screen.findByRole("heading", { name: /buckets/i });
+
+  await userEvent.click(screen.getByRole("link", { name: "Keys" }));
+
+  expect(await screen.findByRole("heading", { name: /api keys/i })).toBeInTheDocument();
+  expect(router.state.location.pathname).toBe("/keys");
+});

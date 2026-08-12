@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate, type RouteObject } from "react-router";
 
+import { KeysPage } from "../features/api-keys/KeysPage";
 import { LoginPage } from "../features/auth/LoginPage";
 import { RequireSession } from "../features/auth/RequireSession";
 import { BucketsPage } from "../features/buckets/BucketsPage";
@@ -33,6 +34,9 @@ export const routes: RouteObject[] = [
           // ADR 003 A7 again: a sibling of /buckets, not a child of an
           // inconsistent parent.
           { path: "/buckets/:name", element: <SecretsPage /> },
+          // ADR 003 A7's third sibling, which SP6 and SP7 both named in
+          // advance.
+          { path: "/keys", element: <KeysPage /> },
         ],
       },
     ],
