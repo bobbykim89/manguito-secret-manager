@@ -89,6 +89,36 @@ Every response follows the same envelope: `{"ok": true, "data": ...}` or
 `{"ok": false, "error": {"code": ..., "message": ...}}`. The frontend narrows
 that union in exactly one place.
 
+## Encryption
+
+Two tiers, so that a stolen database yields nothing and rotating the master key
+does not require rewriting every secret.
+
+```
+KEK          in the environment, versioned, never in the database
+ │ wraps
+ ▼
+per-bucket DEK    stored wrapped, on the bucket row
+ │ encrypts
+ ▼
+each secret value    AES-256-GCM, fresh 96-bit nonce per write
+```
+
+Each value is sealed with additional authenticated data binding it to its
+`(bucket_id, key_name)` pair, so a ciphertext moved to another row fails to
+decrypt rather than silently returning another secret's value.
+
+The AAD is length-prefixed rather than concatenated, because concatenation is
+not injective: bucket `ab` with key `c` and bucket `a` with key `bc` would
+otherwise produce identical AAD, and a ciphertext could be relocated between
+them undetected. That is the exact attack the binding exists to prevent, so
+the encoding has to rule it out rather than make it unlikely.
+
+Deleting a bucket destroys its wrapped DEK, which makes every value it held
+permanently unreadable. Deletion is therefore hard rather than soft, and a
+non-empty bucket is refused: a soft delete that retained the wrapped DEK would
+give up the property.
+
 ## End-to-end type safety across Python and TypeScript
 
 FastAPI emits an OpenAPI schema from the Pydantic models.
@@ -163,11 +193,26 @@ first login. Cross user isolation is therefore load bearing, not theoretical.
 
 | Variable | Required | Purpose |
 |---|---|---|
+| `DATABASE_URL` | yes | Postgres connection string, `postgresql+psycopg://` |
+| `SECRETS_KEKS` | yes | Key-encryption keys, as `version:base64` pairs separated by commas. Keeping a retired key listed is what lets rows that still name it be unwrapped |
+| `SECRETS_KEK_VERSION` | yes | Which KEK version new buckets are wrapped under |
 | `GOOGLE_CLIENT_ID` | yes | OAuth client id from the Google Cloud console |
 | `GOOGLE_CLIENT_SECRET` | yes | OAuth client secret. Never sent to the frontend |
 | `GOOGLE_REDIRECT_URI` | yes | Must exactly match one of the client's authorized redirect URIs |
 | `APP_URL` | yes | Where the frontend lives; the callback redirects here after login |
+| `CORS_ORIGINS` | no | Comma separated. A wildcard is refused rather than reflected, because credentialed requests would make it every origin |
+| `ENVIRONMENT` | no | `local` by default |
 | `SESSION_COOKIE_DOMAIN` | no | `.<domain>` in production, so the session cookie is shared between `app.<domain>` and `api.<domain>`. Empty locally |
+
+Generate a KEK with:
+
+```bash
+python -c "import base64,os; print(base64.b64encode(os.urandom(32)).decode())"
+```
+
+and set it as `SECRETS_KEKS=1:<that value>` with `SECRETS_KEK_VERSION=1`.
+Missing either one fails at import, during the release command, rather than as
+a 500 on the first secret written.
 
 `Settings` is a Pydantic model built at import time, so a deployment missing
 any of the required variables fails during the release command, before
