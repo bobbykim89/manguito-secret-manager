@@ -3,13 +3,35 @@
 A self-hosted secret manager: encrypted key/value storage with a web UI and a
 programmatic API for CI pipelines.
 
-> **Status:** SP2, authentication. Google OAuth and server side sessions are
-> implemented and tested end to end in the backend. There is no login screen
-> yet, so the flow cannot be driven from a browser. Nothing is deployed: the
-> deployment configuration is written but has never been applied. No secrets
-> are stored: there is no bucket or secret schema, and no encryption, yet. See
-> `docs/superpowers/specs/` for the sub-project plan and `docs/adr/` for the
-> decision record.
+> **Status:** feature complete and tested end to end. Buckets, secrets with
+> envelope encryption, scoped API keys, an audit trail, and a web UI covering
+> all of it.
+>
+> **Deployed nowhere.** The Fly and Vercel configuration is written and has
+> never been applied, pending a domain.
+>
+> **Deliberately not built yet:** per-key rate limiting, security headers, and
+> a KEK rotation CLI. Rate limiting is deferred in ADR 002 A7, which rules out
+> an in-process counter because Fly stops the machine and resets it. Each
+> remaining piece gets a spec before it gets code, in
+> [`docs/superpowers/specs/`](docs/superpowers/specs/).
+
+## What it does
+
+Secrets live in **buckets**. A bucket holds key/value pairs whose values are
+encrypted at rest: a per-bucket data key encrypts each value, and that data key
+is itself wrapped by a key-encryption key held outside the database.
+
+Two ways in. A **web UI** to create buckets, add and replace secrets, reveal
+one value at a time, and issue or revoke API keys. A **scoped API key** for
+everything unattended: a key names the buckets it may reach and whether it may
+write or bulk-read, and only its SHA-256 hash is stored, so a leaked database
+does not yield a working credential.
+
+Every read, write and deletion is recorded against the credential that
+performed it. A read that cannot be audited is refused rather than served
+silently, because a secret manager that quietly serves unlogged reads has lost
+the point of the log.
 
 ## Architecture
 
