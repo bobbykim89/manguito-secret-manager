@@ -164,16 +164,12 @@ Then open <http://localhost:5173>.
 
 ## Authentication
 
-Google OAuth with server side sessions. The backend performs the code
-exchange; the frontend never sees a Google token.
-
-Running login locally needs a Google OAuth client, which is free to create.
-[docs/google-oauth-setup.md](docs/google-oauth-setup.md) walks through it end to
-end, including the consent screen setting that silently rejects every account
-but your own, and what each callback error code means when something fails.
+Google OAuth with server-side sessions. The backend performs the code
+exchange, so the frontend never sees a Google token, and the session cookie is
+opaque: it names a row rather than carrying claims.
 
 The redirect URI is configuration rather than something derived from the
-request `Host` header. Deriving it is how open redirect bugs start.
+request `Host` header, because deriving it is how open redirect bugs start.
 
 | Endpoint | Purpose |
 |---|---|
@@ -187,7 +183,13 @@ because a browser navigates to them directly. Everything else returns the
 envelope.
 
 Registration is open: any Google account may sign in and gets an account on
-first login. Cross user isolation is therefore load bearing, not theoretical.
+first login. Cross-user isolation is therefore load bearing rather than
+theoretical, and is tested as such.
+
+Setting up a Google OAuth client is free.
+[docs/google-oauth-setup.md](docs/google-oauth-setup.md) walks through it,
+including the consent screen setting that silently rejects every account but
+your own, and what each callback error code means.
 
 ### Environment variables
 
@@ -228,13 +230,30 @@ docs/     ADRs and sub-project specs
 
 ## Testing
 
-The backend runs against a real Postgres via testcontainers, not SQLite, because
-database behaviour differences matter in this project. The frontend mocks at
-the fetch layer with MSW rather than mocking hooks.
+The backend runs against a real Postgres via testcontainers rather than
+SQLite, because this project depends on behaviour the two do not share.
+Crypto is tested with Hypothesis: roundtrip, tamper detection, nonce
+uniqueness, and that a ciphertext moved between rows fails to decrypt.
+
+The frontend mocks at the fetch boundary with MSW rather than mocking hooks,
+so the tests exercise the real router and the real query client.
+
+Some tests exist to pin a security property rather than a feature, and are
+written so that removing the thing they guard makes them fail:
+
+- Rendering a list of secrets sends zero requests for any value.
+- No request the frontend makes contains `reveal`, asserted across every
+  request a test made rather than one URL.
+- A hidden secret's mask is identical whatever the value's length, so the
+  mask cannot leak it.
+- `localStorage` and `sessionStorage` are empty after a secret is revealed and
+  after an API key token is shown.
 
 ```bash
 make test
 ```
+
+Currently 346 backend tests and 242 frontend tests.
 
 ## Threat model
 
