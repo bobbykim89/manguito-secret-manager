@@ -48,7 +48,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  server.events.removeAllListeners();
+  server.events.removeAllListeners("request:start");
 });
 
 describe("invariant 7: the list never fetches a value", () => {

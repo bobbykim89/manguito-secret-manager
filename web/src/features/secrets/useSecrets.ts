@@ -72,8 +72,10 @@ export function usePutSecret(bucket: string) {
       // secret_count is cached on the bucket list, so a write makes it stale
       // there too.
       void queryClient.invalidateQueries({ queryKey: BUCKETS_QUERY_KEY });
-      // staleTime is Infinity, so a revealed row would otherwise keep showing
-      // the value this call just replaced for the rest of the visit.
+      // Dropping the cached value (rather than leaving it under staleTime:
+      // Infinity) means an already-revealed row rebuilds its query observer
+      // for this key, auto-refetches, and displays the value just written —
+      // a second secret.read audit entry with no second click from the user.
       queryClient.removeQueries({ queryKey: secretValueQueryKey(bucket, keyName), exact: true });
     },
   });
