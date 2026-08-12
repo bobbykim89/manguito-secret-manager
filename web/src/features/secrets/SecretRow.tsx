@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { Alert } from "../../components/Alert";
+import { ConfirmPrompt } from "../../components/ConfirmPrompt";
 import { useDeleteSecret, useSecretValue, type Secret } from "./useSecrets";
 
 /**
@@ -57,26 +58,14 @@ export function SecretRow({ bucket, secret }: { bucket: string; secret: Secret }
         </div>
 
         {confirming ? (
-          <div className="flex items-center gap-2 text-sm">
-            <span>Delete this secret?</span>
-            <button
-              type="button"
-              aria-label={`Confirm deleting ${secret.key_name}`}
-              onClick={() => remove.mutate(secret.key_name)}
-              disabled={remove.isPending}
-              className="rounded border px-2 py-1"
-            >
-              Yes
-            </button>
-            <button
-              type="button"
-              aria-label={`Cancel deleting ${secret.key_name}`}
-              onClick={() => setConfirming(false)}
-              className="rounded border px-2 py-1"
-            >
-              Cancel
-            </button>
-          </div>
+          <ConfirmPrompt
+            prompt="Delete this secret?"
+            confirmLabel={`Confirm deleting ${secret.key_name}`}
+            cancelLabel={`Cancel deleting ${secret.key_name}`}
+            onConfirm={() => remove.mutate(secret.key_name)}
+            onCancel={() => setConfirming(false)}
+            confirmDisabled={remove.isPending}
+          />
         ) : (
           <div className="flex items-center gap-2 text-sm">
             <button
