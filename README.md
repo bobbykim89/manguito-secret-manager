@@ -45,6 +45,50 @@ browser → app.<domain>  (Vercel, React 19 + Vite)
              Neon Postgres
 ```
 
+## A worked example
+
+Create a bucket, add a secret to it, and issue an API key in the web UI. The
+token is shown once, at creation, and is never recoverable afterwards: only its
+SHA-256 hash is stored.
+
+Then, from a pipeline:
+
+```bash
+export API=http://localhost:8000
+export KEY=msm_a3f9c2e1_XmQ7...   # shown once, when the key was created
+
+curl -s -H "Authorization: Bearer $KEY" \
+  "$API/v1/buckets/prod/secrets/DATABASE_URL"
+```
+
+```json
+{"ok":true,"data":{"key_name":"DATABASE_URL","created_at":"2026-08-12T09:14:02Z","updated_at":"2026-08-12T09:14:02Z","value":"postgres://user:pw@host/db"}}
+```
+
+Credentials travel in `Authorization: Bearer`, never in a query string, because
+query strings reach access logs, CDN logs, browser history and `Referer`
+headers.
+
+Pulling a whole bucket in one request is a separate capability, and a key only
+has it if it was issued with the bulk reveal scope:
+
+```bash
+curl -s -H "Authorization: Bearer $KEY" \
+  "$API/v1/buckets/prod/secrets?reveal=true"
+```
+
+```json
+{"ok":false,"error":{"code":"REVEAL_NOT_PERMITTED","message":"Bulk reveal requires an API key with the reveal scope."}}
+```
+
+A browser session is refused there too, whatever the signed-in user owns. Bulk
+reveal is a property of the credential rather than of the endpoint, so the web
+UI cannot reach it at all.
+
+Every response follows the same envelope: `{"ok": true, "data": ...}` or
+`{"ok": false, "error": {"code": ..., "message": ...}}`. The frontend narrows
+that union in exactly one place.
+
 ## End-to-end type safety across Python and TypeScript
 
 FastAPI emits an OpenAPI schema from the Pydantic models.
