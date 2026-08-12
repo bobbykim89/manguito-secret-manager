@@ -30,7 +30,17 @@ function renderPage() {
   const router = createMemoryRouter(
     [
       { path: "/buckets", element: <Link to="/buckets/alpha">back to alpha</Link> },
-      { path: "/buckets/:name", element: <SecretsPage /> },
+      {
+        path: "/buckets/:name",
+        element: (
+          <>
+            {/* Stands in for AppShell's nav bar, which this stub router does
+                not mount. SP8 removed SecretsPage's own back link. */}
+            <Link to="/buckets">Buckets</Link>
+            <SecretsPage />
+          </>
+        ),
+      },
     ],
     { initialEntries: ["/buckets/alpha"] },
   );
@@ -134,7 +144,7 @@ describe("invariant 7: the list never fetches a value", () => {
     await userEvent.click(within(row).getByRole("button", { name: /reveal A/i }));
     await within(row).findByText("s3cr3t");
 
-    await userEvent.click(screen.getByRole("link", { name: /all buckets/i }));
+    await userEvent.click(screen.getByRole("link", { name: /^buckets$/i }));
     await userEvent.click(await screen.findByRole("link", { name: /back to alpha/i }));
 
     const returned = await screen.findByRole("listitem", { name: /^A$/ });
@@ -301,7 +311,7 @@ describe("the bucket list learns about a deleted secret", () => {
     );
 
     await screen.findByText(/no secrets yet/i);
-    await userEvent.click(screen.getByRole("link", { name: /all buckets/i }));
+    await userEvent.click(screen.getByRole("link", { name: /^buckets$/i }));
 
     // The direct isInvalidated check above is what actually falsifies removing
     // the invalidation call. This UI walk-through additionally confirms the

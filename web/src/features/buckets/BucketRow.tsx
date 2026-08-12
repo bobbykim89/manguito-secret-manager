@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 
 import { Alert } from "../../components/Alert";
+import { ConfirmPrompt } from "../../components/ConfirmPrompt";
 
 import { useDeleteBucket, type Bucket } from "./useBuckets";
 
@@ -38,24 +39,12 @@ export function BucketRow({ bucket }: { bucket: Bucket }) {
         </div>
 
         {confirming ? (
-          <div className="flex items-center gap-2 text-sm">
-            <span>Delete this bucket?</span>
-            <button
-              type="button"
-              onClick={() => remove.mutate(bucket.name)}
-              disabled={remove.isPending || holdsSecrets}
-              className="rounded border px-2 py-1"
-            >
-              Yes
-            </button>
-            <button
-              type="button"
-              onClick={() => setConfirming(false)}
-              className="rounded border px-2 py-1"
-            >
-              Cancel
-            </button>
-          </div>
+          <ConfirmPrompt
+            prompt="Delete this bucket?"
+            onConfirm={() => remove.mutate(bucket.name)}
+            onCancel={() => setConfirming(false)}
+            confirmDisabled={remove.isPending || holdsSecrets}
+          />
         ) : (
           <div className="flex items-center gap-3 text-sm">
             {holdsSecrets && (

@@ -62,7 +62,7 @@ When touching crypto or auth code, add or update the corresponding test in the s
 
 - Feature-first directories under `src/features/`, not type-first.
 - TanStack Query owns server state. Do not hand-roll fetch plus loading plus error in `useEffect`.
-- Zustand owns client state only (reveal toggles, modals, toasts).
+- No client state library. TanStack Query owns server state; `useState` owns everything else. See ADR 003 A11.
 - `src/api/generated.ts` is generated. Never hand-edit it. Run `make types` after changing a Pydantic model.
 - Zod schemas for form validation, wired through React Hook Form.
 - Tests mock at the fetch boundary with MSW. Test behavior, not hooks or class names.

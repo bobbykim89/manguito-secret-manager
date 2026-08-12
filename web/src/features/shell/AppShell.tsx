@@ -1,4 +1,4 @@
-import { Outlet } from "react-router";
+import { NavLink, Outlet } from "react-router";
 
 import { Alert } from "../../components/Alert";
 
@@ -21,7 +21,31 @@ export function AppShell() {
   return (
     <div className="min-h-screen">
       <header className="flex items-center justify-between border-b px-6 py-4">
-        <span className="font-semibold">Manguito Secret Manager</span>
+        <div className="flex items-center gap-6">
+          <span className="font-semibold">Manguito Secret Manager</span>
+          {/* NavLink rather than Link: it supplies isActive and sets
+              aria-current, so the current destination needs no state and no
+              route matching here. `end` is deliberately unset, so
+              /buckets/:name keeps Buckets marked. */}
+          <nav aria-label="Main" className="flex items-center gap-4 text-sm">
+            <NavLink
+              to="/buckets"
+              className={({ isActive }) =>
+                isActive ? "font-medium underline" : "text-slate-600"
+              }
+            >
+              Buckets
+            </NavLink>
+            <NavLink
+              to="/keys"
+              className={({ isActive }) =>
+                isActive ? "font-medium underline" : "text-slate-600"
+              }
+            >
+              Keys
+            </NavLink>
+          </nav>
+        </div>
         <div className="flex items-center gap-4">
           {session.status === "authenticated" && (
             <span className="text-sm text-slate-600">{session.user.email}</span>

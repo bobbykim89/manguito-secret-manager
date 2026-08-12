@@ -46,15 +46,6 @@ describe("SecretsPage", () => {
     expect(screen.getByRole("heading", { name: "alpha" })).toBeInTheDocument();
   });
 
-  it("offers a way back to the bucket list", async () => {
-    server.use(http.get(SECRETS, () => HttpResponse.json({ ok: true, data: [] })));
-    renderPage();
-
-    const back = await screen.findByRole("link", { name: /all buckets/i });
-
-    expect(back).toHaveAttribute("href", "/buckets");
-  });
-
   it("says an empty bucket is empty rather than looking like it is loading", async () => {
     server.use(http.get(SECRETS, () => HttpResponse.json({ ok: true, data: [] })));
     renderPage();
