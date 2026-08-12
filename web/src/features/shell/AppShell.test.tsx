@@ -75,3 +75,48 @@ describe("AppShell", () => {
     expect(queryClient.getQueryData(SESSION_QUERY_KEY)).not.toBeNull();
   });
 });
+
+describe("AppShell navigation", () => {
+  it("offers both destinations", async () => {
+    signedIn();
+
+    renderShell();
+
+    expect(await screen.findByRole("link", { name: "Buckets" })).toHaveAttribute(
+      "href",
+      "/buckets",
+    );
+    expect(screen.getByRole("link", { name: "Keys" })).toHaveAttribute("href", "/keys");
+  });
+
+  it("marks the current destination", async () => {
+    signedIn();
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/keys"]}>
+        <AppShell />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("link", { name: "Keys" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("link", { name: "Buckets" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("keeps Buckets current inside a bucket, since a secret list is still buckets", async () => {
+    // NavLink matches descendants unless `end` is set, and not setting it is
+    // deliberate here.
+    signedIn();
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/buckets/alpha"]}>
+        <AppShell />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("link", { name: "Buckets" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+});

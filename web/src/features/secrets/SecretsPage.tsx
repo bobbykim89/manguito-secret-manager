@@ -1,4 +1,4 @@
-import { Link, useParams } from "react-router";
+import { useParams } from "react-router";
 
 import { Alert } from "../../components/Alert";
 import { PutSecretForm } from "./PutSecretForm";
@@ -18,14 +18,7 @@ export function SecretsPage() {
 
   return (
     <section className="flex flex-col gap-6">
-      <div>
-        {/* Browser back works, but a page you can only leave with the back
-            button feels like a dead end, and SP8's nav bar is not here yet. */}
-        <Link to="/buckets" className="text-sm text-slate-600 underline">
-          All buckets
-        </Link>
-        <h1 className="text-xl font-semibold">{bucket}</h1>
-      </div>
+      <h1 className="text-xl font-semibold">{bucket}</h1>
 
       {missing ? (
         <Alert>{secrets.error?.message}</Alert>
