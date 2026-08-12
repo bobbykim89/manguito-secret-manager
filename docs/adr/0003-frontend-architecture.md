@@ -106,7 +106,6 @@ web/src/
 │   ├── secrets/
 │   └── api-keys/
 ├── components/             # shared primitives only
-├── stores/                 # zustand
 ├── routes/
 └── lib/
 ```
@@ -231,6 +230,21 @@ level confirm flag turned out to belong in the row.
 arrival. If SP8 finds no client state either, remove it from this ADR's stack
 rather than leaving it waiting indefinitely for a consumer that keeps not
 appearing.
+
+Removing the store did not remove the plaintext it held. SP7 put it in the
+TanStack Query cache instead, under the query key
+`["secret-value", bucket, keyName]` (see
+`web/src/features/secrets/useSecrets.ts`), with `staleTime: Infinity` and the
+default five minute `gcTime`. A2's constraint now lives here, not in a store
+that no longer exists: the query client (`web/src/api/queryClient.ts`) must
+never receive a persister — `persistQueryClient` or
+`@tanstack/react-query-persist-client` — since that would write every revealed
+value to `localStorage`, exactly what invariant 8 forbids. `secret-value`
+entries leave the cache when `gcTime` expires five minutes after the owning
+component unmounts, or when a write or delete calls `removeQueries` on that
+key directly; there is no explicit "clear revealed secrets" action to audit
+instead. No persister may be added to the query client without re-examining
+this paragraph first.
 
 ### A10. The clipboard is a named exception to invariant 8
 
