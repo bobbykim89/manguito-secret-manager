@@ -206,3 +206,18 @@ Compose and runs the API on the host under `uv run uvicorn --reload`.
 credibility rests on its cryptography, a name a reader may mistake for a
 specific primitive the project does not use is worth avoiding. Rename before
 init, as already planned.
+
+### A9. The threat model is in the README, as amended rather than verbatim
+
+A6 put the threat model in the README "per ADR 002's instruction that it appear
+there verbatim". ADR 002 A19 has since narrowed the claim that instruction
+points at, after SP3's implementation review found it true but broader than the
+implementation supports.
+
+**Amended:** the location stands, unchanged. The word verbatim does not. The
+README carries the threat model as amended by ADR 002 A19, which separates read
+access to the database from write access and states plainly that the AAD
+binding prevents ciphertext relocation rather than database tampering in
+general.
+
+Nothing here conflicts with A6. It was written before A19 existed.
