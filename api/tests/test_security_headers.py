@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from starlette.routing import BaseRoute
 
 from app.config import Settings
+from app.db import get_db
 from app.main import app
 from app.security_headers import (
     HSTS_HEADER,
@@ -165,3 +166,55 @@ def test_hsts_is_absent_in_the_test_environment(client: TestClient) -> None:
     response = client.get("/v1/health")
 
     assert HSTS_HEADER not in response.headers
+
+
+def test_headers_are_on_an_unhandled_five_hundred(migrated_engine: object) -> None:
+    """The one response that does not pass through the middleware.
+
+    Starlette puts the Exception handler in ServerErrorMiddleware, outside
+    every user middleware, so this is covered by envelope.py calling the same
+    function rather than by SecurityHeadersMiddleware. Deleting that call
+    makes this test, and only this test, fail.
+
+    raise_server_exceptions=False so the rendered body comes back instead of
+    the exception being re-raised into the test.
+    """
+
+    def exploding_db() -> Iterator[None]:
+        raise RuntimeError("boom")
+        yield
+
+    app.dependency_overrides[get_db] = exploding_db
+    try:
+        with TestClient(app, raise_server_exceptions=False) as unsafe_client:
+            response = unsafe_client.get("/v1/health")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 500
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["Referrer-Policy"] == "no-referrer"
+    assert response.headers["Cache-Control"] == "no-store"
+
+
+def test_the_five_hundred_still_leaks_nothing(migrated_engine: object) -> None:
+    """Guards the edit in Task 3 against weakening invariant 1.
+
+    envelope.py's 500 handler is being modified, and the property that matters
+    most about it is that str(exc) never reaches the body.
+    """
+
+    def exploding_db() -> Iterator[None]:
+        raise RuntimeError("hunter2-should-never-reach-the-client")
+        yield
+
+    app.dependency_overrides[get_db] = exploding_db
+    try:
+        with TestClient(app, raise_server_exceptions=False) as unsafe_client:
+            response = unsafe_client.get("/v1/health")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert "hunter2-should-never-reach-the-client" not in response.text
+    assert "Traceback" not in response.text
+    assert "RuntimeError" not in response.text
