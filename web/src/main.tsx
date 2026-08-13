@@ -5,6 +5,8 @@ import { RouterProvider } from "react-router";
 
 import { createQueryClient } from "./api/queryClient";
 import { ThemeProvider } from "./components/ThemeProvider";
+import { ToastProvider } from "./components/ToastProvider";
+import { ToastViewport } from "./components/ToastViewport";
 import "./index.css";
 import { router } from "./routes/router";
 
@@ -18,9 +20,12 @@ if (!rootElement) {
 createRoot(rootElement).render(
   <StrictMode>
     <ThemeProvider>
-      <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
-      </QueryClientProvider>
+      <ToastProvider>
+        <QueryClientProvider client={queryClient}>
+          <RouterProvider router={router} />
+        </QueryClientProvider>
+        <ToastViewport />
+      </ToastProvider>
     </ThemeProvider>
   </StrictMode>,
 );
