@@ -10,11 +10,10 @@ programmatic API for CI pipelines.
 > **Deployed nowhere.** The Fly configuration is written and has never been
 > applied, pending a domain. Vercel is not configured at all yet.
 >
-> **Deliberately not built yet:** per-key rate limiting and a KEK rotation
-> CLI. Rate limiting is deferred in ADR 002 A7, which rules out
-> an in-process counter because Fly stops the machine and resets it. Each
-> remaining piece gets a spec before it gets code, in
-> [`docs/superpowers/specs/`](docs/superpowers/specs/).
+> **Deliberately not built yet:** per-key rate limiting. It is deferred in
+> ADR 002 A7, which rules out an in-process counter because Fly stops the
+> machine and resets it. Each remaining piece gets a spec before it gets
+> code, in [`docs/superpowers/specs/`](docs/superpowers/specs/).
 
 ## What it does
 
@@ -226,6 +225,20 @@ a 500 on the first secret written.
 `Settings` is a Pydantic model built at import time, so a deployment missing
 any of the required variables fails during the release command, before
 migrations run, rather than surfacing as a 500 on first login.
+
+## Rotating the KEK
+
+1. Generate a new key: `python -c "import base64,os; print(base64.b64encode(os.urandom(32)).decode())"`
+2. Add it to `SECRETS_KEKS` as a new `version:base64` entry, alongside the
+   retired one. Point `SECRETS_KEK_VERSION` at the new version.
+3. Deploy this change to the live API before running the script below.
+   Buckets created after this deploy are wrapped under the new key, so
+   rotation only needs to handle what already exists.
+4. `cd api && uv run python scripts/rotate_kek.py --dry-run` to preview.
+5. `cd api && uv run python scripts/rotate_kek.py` to rotate. It touches
+   only Postgres and is safe to rerun if interrupted.
+6. Once the summary reports 0 remaining on the old version, remove the
+   retired KEK from `SECRETS_KEKS` and redeploy.
 
 ## Repository layout
 
