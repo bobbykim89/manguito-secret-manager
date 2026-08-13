@@ -25,6 +25,7 @@ export function Modal({
   const triggerRef = useRef<Element | null>(null);
   const titleId = useId();
   const onCloseRef = useRef(onClose);
+  const mouseDownOnBackdropRef = useRef(false);
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -46,12 +47,20 @@ export function Modal({
       const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
         'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])',
       );
-      if (focusable.length === 0) return;
+
+      if (focusable.length === 0) {
+        // Nothing to tab to inside the dialog; keep focus from ever leaving it.
+        event.preventDefault();
+        return;
+      }
+
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
       if (!first || !last) return;
 
-      if (event.shiftKey && document.activeElement === first) {
+      const onWrapper = document.activeElement === dialogRef.current;
+
+      if (event.shiftKey && (document.activeElement === first || onWrapper)) {
         event.preventDefault();
         last.focus();
       } else if (!event.shiftKey && document.activeElement === last) {
@@ -77,7 +86,15 @@ export function Modal({
   }
 
   return createPortal(
-    <div className="fixed inset-0 flex items-center justify-center bg-black/40" onClick={onClose}>
+    <div
+      className="fixed inset-0 flex items-center justify-center bg-black/40"
+      onMouseDown={(event) => {
+        mouseDownOnBackdropRef.current = event.target === event.currentTarget;
+      }}
+      onClick={() => {
+        if (mouseDownOnBackdropRef.current) onClose();
+      }}
+    >
       <div
         ref={dialogRef}
         role="dialog"
@@ -85,7 +102,7 @@ export function Modal({
         aria-labelledby={titleId}
         tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
-        className="w-full max-w-md rounded-lg border bg-surface p-6 shadow-lg"
+        className="w-full max-w-md rounded-lg border border-border bg-surface p-6 shadow-lg"
       >
         <h2 id={titleId} className="text-lg font-semibold">
           {title}

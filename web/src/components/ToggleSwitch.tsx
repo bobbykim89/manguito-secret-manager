@@ -24,7 +24,7 @@ export function ToggleSwitch({
       aria-label={label}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={`relative h-6 w-11 rounded-full border transition-colors ${
+      className={`relative h-6 w-11 rounded-full border border-border transition-colors ${
         checked ? "bg-accent" : "bg-surface"
       } ${disabled ? "opacity-50" : ""}`}
     >

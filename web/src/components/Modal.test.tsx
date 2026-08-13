@@ -75,6 +75,38 @@ describe("Modal", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
+  it("wraps focus to the last element on Shift+Tab pressed immediately after open", async () => {
+    const user = userEvent.setup();
+    render(
+      <Modal open onClose={vi.fn()} title="Create bucket">
+        <button>First</button>
+        <button>Last</button>
+      </Modal>,
+    );
+
+    expect(screen.getByRole("dialog")).toHaveFocus();
+
+    await user.tab({ shift: true });
+
+    expect(screen.getByRole("button", { name: "Last" })).toHaveFocus();
+  });
+
+  it("wraps focus to the first element on Tab from the last element", async () => {
+    const user = userEvent.setup();
+    render(
+      <Modal open onClose={vi.fn()} title="Create bucket">
+        <button>First</button>
+        <button>Last</button>
+      </Modal>,
+    );
+
+    screen.getByRole("button", { name: "Last" }).focus();
+
+    await user.tab();
+
+    expect(screen.getByRole("button", { name: "First" })).toHaveFocus();
+  });
+
   it("restores focus to the trigger element on close", () => {
     const trigger = document.createElement("button");
     trigger.textContent = "Open";

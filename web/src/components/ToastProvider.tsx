@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useCallback, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 export type ToastTone = "success" | "info";
 
@@ -44,7 +44,16 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     [dismiss],
   );
 
-  return (
-    <ToastContext.Provider value={{ toasts, notify }}>{children}</ToastContext.Provider>
-  );
+  useEffect(() => {
+    const timerMap = timers.current;
+    return () => {
+      for (const timer of timerMap.values()) {
+        clearTimeout(timer);
+      }
+    };
+  }, []);
+
+  const value = useMemo(() => ({ toasts, notify }), [toasts, notify]);
+
+  return <ToastContext.Provider value={value}>{children}</ToastContext.Provider>;
 }

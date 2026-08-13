@@ -4,7 +4,7 @@
 
 **Goal:** Build the shared visual foundation (theme tokens, dark mode, a self-hosted font, and three new components: `ToggleSwitch`, `Modal`, and a toast system) that four later, separate pieces will each reskin one existing page onto.
 
-**Architecture:** Everything lives under `web/src/components/` alongside `Alert.tsx` and `ConfirmPrompt.tsx`, following their existing conventions exactly (plain Tailwind, no `className` prop, a doc comment on each export explaining why it exists). Nothing here is wired into an existing page — `ThemeProvider` and the toast system mount in `main.tsx`, above the router, but no route, page, or feature component changes.
+**Architecture:** Everything lives under `web/src/components/` alongside `Alert.tsx` and `ConfirmPrompt.tsx`, following their existing conventions exactly (plain Tailwind, no `className` prop, a doc comment on each export explaining why it exists). Nothing here is wired into an existing page: `ThemeProvider` and the toast system mount in `main.tsx`, above the router, but no route, page, or feature component changes.
 
 **Tech Stack:** React 19, Tailwind 4 (`@theme`, `@custom-variant`), Vitest + React Testing Library, `@testing-library/user-event`. No new npm dependency.
 
@@ -12,7 +12,7 @@
 
 - Branch `feat/ui-modernization-foundation` already carries the spec commit at `docs/superpowers/specs/2026-08-12-ui-modernization-foundation-design.md`. Work happens on this branch.
 - No new npm dependency. The Inter font files are fetched as static assets via `curl`, never added to `package.json`.
-- Every new shared component lives in `web/src/components/`. None takes a `className` prop — `Alert.tsx`'s doc comment states why: "A component that takes arbitrary classes is the styled paragraph it was extracted from."
+- Every new shared component lives in `web/src/components/`. None takes a `className` prop; `Alert.tsx`'s doc comment states why: "A component that takes arbitrary classes is the styled paragraph it was extracted from."
 - Tailwind only, no CSS modules, no styled-components.
 - Doc comments explain why, not what. No em dashes anywhere: code, comments, commit messages, docs.
 - Tests: Vitest + React Testing Library. `describe`/`it`, `userEvent` from `@testing-library/user-event` for interactions (never raw `.click()` or `fireEvent` for user-initiated events), `vi.fn()` for callbacks, queries by role or text, never `data-testid`.
@@ -1099,10 +1099,10 @@ Find the "Open questions" section near the top of the file:
 Replace it with:
 
 ```
-- Dark mode. Trivial with Tailwind, but adds test surface. Probably yes, low priority. **Resolved — see A13.**
+- Dark mode. Trivial with Tailwind, but adds test surface. Probably yes, low priority. **Resolved: see A13.**
 ```
 
-(This matches the line immediately below it in the same list, which already ends "**Resolved — see A3.**")
+(This matches the line immediately below it in the same list, which already carries its own resolution note pointing at A3.)
 
 Then, after A12 at the end of the file, add:
 
@@ -1124,7 +1124,7 @@ manual toggle can override system preference. `ThemeProvider`/`useTheme`
 (`web/src/components/ThemeProvider.tsx`) persist the choice to
 `localStorage` under a `theme` key and fall back to `prefers-color-scheme`
 when unset. This is a UI preference, not a secret value, so `localStorage`
-is the ordinary place for it — invariant 8 restricts secret values
+is the ordinary place for it: invariant 8 restricts secret values
 specifically.
 
 ### A14. Toasts are a scoped exception to A11
@@ -1144,7 +1144,7 @@ states it directly rather than leaving it implied.
 React Context wrapping a `useState` list, mounted once above the router.
 `useToast()` returns a `notify(message, tone?)` function; nothing else
 about A11 changes. This is scoped to toast notifications specifically and
-is not a general license for more shared client state — the next piece of
+is not a general license for more shared client state. The next piece of
 state that looks like it needs to be global should still be checked for
 whether it is actually component-local first, the way A9 and this ADR's
 own history already show it usually is.
@@ -1153,7 +1153,7 @@ own history already show it usually is.
 - [ ] **Step 3: Verify the changes**
 
 Run: `grep -n "dark mode" /path/to/repo/CLAUDE.md` (adjust to the actual repo path) and confirm the "Out of scope for v1" line no longer contains it.
-Run: `grep -n "A13\|A14" docs/adr/0003-frontend-architecture.md` and confirm both amendments appear, plus the "Resolved — see A13" edit to the open-questions line.
+Run: `grep -n "A13\|A14" docs/adr/0003-frontend-architecture.md` and confirm both amendments appear, plus the "Resolved: see A13" edit to the open-questions line.
 
 - [ ] **Step 4: Commit**
 

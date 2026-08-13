@@ -9,8 +9,8 @@ Depends on: nothing shipped depends on this; it is new frontend surface
 A visual redesign was prototyped in a Claude Design mockup (`Manguito Secret
 Manager.dc.html`, project "Secret Manager UI Modernization"), covering
 every screen: login, buckets, bucket detail/secrets, API keys, and the
-shell nav/footer. The mockup is design input, not code to import verbatim
-— it is a static `.dc.html` prototype using its own templating DSL and mock
+shell nav/footer. The mockup is design input, not code to import verbatim:
+it is a static `.dc.html` prototype using its own templating DSL and mock
 data, not React or Tailwind, and its own accompanying notes describe it as
 "a design prototype for review before implementation," with an explicit
 screen-to-file mapping onto this app's real components.
@@ -102,12 +102,12 @@ unresolved open question ("dark mode... probably yes"), made concrete now.
 and a `useTheme()` hook: reads a `theme` key from `localStorage`
 (`"light" | "dark" | "system"`), falls back to `prefers-color-scheme` when
 unset or `"system"`, and sets `data-theme` on `<html>`. This is a UI
-preference, not a secret value — invariant 8 restricts secret values
+preference, not a secret value: invariant 8 restricts secret values
 specifically, and a theme choice is not one.
 
 **Font.** Inter, self-hosted: `.woff2` files committed under
 `web/public/fonts/`, `@font-face` declarations in `index.css`,
-`font-family` set on `body`. Not pulled from Google's CDN at runtime — a
+`font-family` set on `body`. Not pulled from Google's CDN at runtime: a
 one-time static-asset fetch during implementation, not a live third-party
 request on a page that also asks users to sign in with Google, and not a
 new npm dependency.
@@ -127,7 +127,7 @@ toggle.
 Closes on Escape and backdrop click, traps focus while open, restores
 focus to the triggering element on close. `role="dialog"`
 `aria-modal="true"`, `aria-labelledby` pointing at the title. No built-in
-form handling — callers own their form and call `onClose` themselves,
+form handling: callers own their form and call `onClose` themselves,
 matching how `ConfirmPrompt` stays presentational today.
 
 **Toasts.** `ToastProvider` (`web/src/components/ToastProvider.tsx`, a
@@ -137,7 +137,7 @@ as the authenticated shell. `useToast()` returns `notify(message, tone?)`.
 A `ToastViewport` renders the active list in a fixed-position stack and
 auto-dismisses each entry after a timeout via `setTimeout`, cleared on
 unmount. There is no existing timeout convention elsewhere in this
-codebase to follow — ADR 003 states that revealed secrets auto-mask after
+codebase to follow: ADR 003 states that revealed secrets auto-mask after
 a timeout, but `SecretRow.tsx` was never actually built that way; it only
 hides on manual click. That gap is unrelated to this piece and is called
 out separately under Deferred, not fixed here. Success-only: nothing in
@@ -175,13 +175,13 @@ markup required, so `index.css` gets:
 
 No hook, no new file. Passing `viewTransition: true` on an actual
 `navigate()` call or `<NavLink>` is page-level wiring, deferred to the
-login/shell piece — the same boundary as every other primitive in this
+login/shell piece, the same boundary as every other primitive in this
 spec.
 
 ## Files
 
 **New:**
-- `web/src/index.css` — theme tokens, dark variant, `@font-face`
+- `web/src/index.css`: theme tokens, dark variant, `@font-face`
 - `web/public/fonts/inter-*.woff2`
 - `web/src/components/ThemeProvider.tsx`, `web/src/components/useTheme.ts`
 - `web/src/components/ToggleSwitch.tsx`
@@ -191,10 +191,10 @@ spec.
   (`ComponentName.test.tsx`)
 
 **Modified:**
-- `web/src/main.tsx` — mounts `ThemeProvider` and `ToastProvider` above the router
-- `index.html` — adds the `Modal` portal root
-- `CLAUDE.md` — drops "dark mode" from Out of scope for v1
-- `docs/adr/0003-frontend-architecture.md` — A13 and A14 (below)
+- `web/src/main.tsx`: mounts `ThemeProvider` and `ToastProvider` above the router
+- `index.html`: adds the `Modal` portal root
+- `CLAUDE.md`: drops "dark mode" from Out of scope for v1
+- `docs/adr/0003-frontend-architecture.md`: A13 and A14 (below)
 
 ## ADR amendments this spec requires
 
@@ -212,7 +212,7 @@ reasoning that every piece of state this app had needed turned out to be
 component-local. A toast queue is the first state that does not fit that
 shape: it is triggered from wherever a mutation succeeds and rendered once,
 high in the tree. A11's target was dependence on a state-management
-package, not React's own Context — this amendment records that
+package, not React's own Context; this amendment records that
 distinction explicitly rather than leaving it implied. Scoped narrowly to
 toast notifications; it is not a general license for more shared client
 state.
@@ -233,7 +233,7 @@ convention: test behavior, not internals.
 - Toasts: `notify()` renders a toast; it auto-dismisses after the timeout,
   using fake timers.
 
-Page transitions have no behavior of their own to test in this piece —
+Page transitions have no behavior of their own to test in this piece:
 they're CSS consumed by a browser feature React Router already tests. No
 test is added for a CSS keyframe.
 
@@ -280,7 +280,7 @@ in isolation, is what keeps each of those four pieces small.
 **`document.startViewTransition` has partial browser support.** React
 Router's own `viewTransition` option already falls back to a plain
 navigation when the browser doesn't implement it, so this never breaks
-navigation, only degrades the animation — a cosmetic risk, not a
+navigation, only degrades the animation: a cosmetic risk, not a
 functional one, and not this piece's code to maintain.
 
 **Self-hosted font files add a small amount of repo weight** (a handful of
@@ -302,7 +302,7 @@ pieces, remains separate and unstarted, with its own open design question
 **A real gap, found incidentally while writing this spec, not caused by
 it:** ADR 003 lists "Revealed values auto-mask after a timeout" as a
 non-negotiable security-relevant UI requirement, but `SecretRow.tsx` was
-never built that way — reveal only toggles off on manual click or on
+never built that way: reveal only toggles off on manual click or on
 unmount. This piece does not touch `SecretRow.tsx` and does not fix it.
 Flagged here so it isn't lost; worth its own small spec, most likely
 folded into the secrets follow-up piece rather than done standalone.
