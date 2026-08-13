@@ -1,7 +1,6 @@
 import uuid
 
 import pytest
-from fastapi import Response
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -196,7 +195,6 @@ def test_the_body_refuses_reveal_even_without_the_route_dependency(
             caller=caller,
             session=db_session,
             provider=provider,
-            response=Response(),
             reveal=True,
         )
 

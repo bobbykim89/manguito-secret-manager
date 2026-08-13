@@ -2,7 +2,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends
 from pydantic import AwareDatetime, BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -91,7 +91,7 @@ def list_endpoint(user: CurrentUser, session: Db) -> Ok[list[ApiKeyData]]:
     responses={401: {"model": Err}, 404: {"model": Err}, 422: {"model": Err}},
 )
 def create_endpoint(
-    body: CreateKeyRequest, user: CurrentUser, session: Db, response: Response
+    body: CreateKeyRequest, user: CurrentUser, session: Db
 ) -> Ok[CreatedApiKeyData]:
     if body.expires_at is not None and body.expires_at <= datetime.now(UTC):
         raise ApiError(
@@ -128,8 +128,6 @@ def create_endpoint(
         token=token,
     )
     session.commit()
-    # Carries a live credential, so the same rule as a revealed secret.
-    response.headers["Cache-Control"] = "no-store"
     return Ok(data=data)
 
 

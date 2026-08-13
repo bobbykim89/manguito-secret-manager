@@ -9,6 +9,9 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.config import get_settings
+from app.security_headers import apply_security_headers
+
 logger = logging.getLogger(__name__)
 
 INTERNAL_ERROR_MESSAGE = "An unexpected error occurred."
@@ -116,4 +119,11 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     server log instead.
     """
     logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
-    return _error_response(500, code_for_status(500), INTERNAL_ERROR_MESSAGE)
+    response = _error_response(500, code_for_status(500), INTERNAL_ERROR_MESSAGE)
+    # Not redundant with SecurityHeadersMiddleware. Starlette routes the
+    # handler registered for Exception into ServerErrorMiddleware, which sits
+    # outside every user middleware, so this response never passes back
+    # through it. Deleting this line silently strips the headers from exactly
+    # the responses nobody tests by hand.
+    apply_security_headers(response, get_settings())
+    return response

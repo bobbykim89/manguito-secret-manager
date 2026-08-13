@@ -134,7 +134,6 @@ def list_endpoint(
     caller: CurrentCaller,
     session: Db,
     provider: Provider,
-    response: Response,
     # Declared again here rather than taken from deny_reveal's return,
     # because deny_reveal is a route level dependency, which is what makes
     # it resolve before ResolvedBucket. Both read the same query parameter.
@@ -172,9 +171,6 @@ def list_endpoint(
             key_name=key_name,
         )
     session.commit()
-    # Carries every plaintext in the bucket, so the same rule as a single
-    # revealed secret. See ADR 002 A21.
-    response.headers["Cache-Control"] = "no-store"
     return Ok(data=values)
 
 
@@ -189,7 +185,6 @@ def get_endpoint(
     caller: CurrentCaller,
     session: Db,
     provider: Provider,
-    response: Response,
 ) -> Ok[SecretValueData]:
     secret = get_secret(session, bucket, key)
     if secret is None:
@@ -219,9 +214,6 @@ def get_endpoint(
         value=value,
     )
     session.commit()
-    # The one response in this API that carries a plaintext secret. A21 says
-    # it must not sit behind a cache; this is what says so on the wire.
-    response.headers["Cache-Control"] = "no-store"
     return Ok(data=data)
 
 

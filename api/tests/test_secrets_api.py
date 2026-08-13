@@ -67,7 +67,10 @@ def test_the_single_key_read_carries_a_no_store_directive(
     client: TestClient, db_session: Session
 ) -> None:
     """ADR 002 A21: the one response carrying a plaintext secret must not
-    sit behind a cache. The list carries no value, so it needs no directive."""
+    sit behind a cache. Cache-Control: no-store is now applied to every
+    response by SecurityHeadersMiddleware, so the list gets it too, but this
+    test still exists to prove the single-key read specifically carries it,
+    since that's the response A21 is actually about."""
     with_bucket(client, db_session, "api-cache", "cached")
     client.put("/v1/buckets/cached/secrets/KEY", json={"value": "v"})
 
@@ -75,7 +78,7 @@ def test_the_single_key_read_carries_a_no_store_directive(
     listed = client.get("/v1/buckets/cached/secrets")
 
     assert got.headers.get("cache-control") == "no-store"
-    assert "cache-control" not in listed.headers
+    assert listed.headers.get("cache-control") == "no-store"
 
 
 def test_the_list_returns_metadata_and_never_a_value(
