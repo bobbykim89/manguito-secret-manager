@@ -118,7 +118,7 @@ Vercel Hobby, project root directory set to `web/`, framework preset Vite. `VITE
 
 ## Open questions
 
-- Dark mode. Trivial with Tailwind, but adds test surface. Probably yes, low priority.
+- Dark mode. Trivial with Tailwind, but adds test surface. Probably yes, low priority. **Resolved: see A13.**
 - Whether the API key creation flow should generate the key client-side and send a hash. Would be a nice zero-knowledge touch for that one credential, but complicates nothing else and may be more confusing than valuable. Leaning no. **Resolved — see A3.**
 - Command palette for bucket and key search. Good demo material, out of scope for v1.
 
@@ -297,3 +297,48 @@ no URL state and no error payload, and it exists in memory only as the create
 mutation's `data`, until `reset()` on acknowledgement or garbage collection on
 unmount removes it. The panel that displays it also arms the only guards
 against losing it, so those cannot outlive the credential they protect.
+
+### A13. Dark mode is resolved
+
+The open question above has stood since this ADR was first written:
+"Dark mode. Trivial with Tailwind, but adds test surface. Probably yes,
+low priority." CLAUDE.md separately listed dark mode under "Out of scope
+for v1," for a different reason: it wasn't planned work, not a rejection.
+That line is removed as part of the same decision this amendment records.
+
+**Amended:** dark mode's foundation ships. `web/src/index.css` defines a
+selector-based `dark:` variant
+(`@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *))`),
+not the framework's default `prefers-color-scheme` media variant, so a
+manual toggle can override system preference once one exists.
+`ThemeProvider`/`useTheme` (`web/src/components/ThemeProvider.tsx`)
+persist a choice to `localStorage` under a `theme` key and fall back to
+`prefers-color-scheme` when unset. No page or component calls
+`setPreference` yet: there is no toggle control anywhere in the shipped
+surface, so a user's only path to dark mode today is matching their OS
+preference. The manual toggle is deferred to the login/shell follow-up
+piece, the first place a UI control exists to wire it into. This is a UI
+preference, not a secret value, so `localStorage` is the ordinary place
+for it: invariant 8 restricts secret values specifically.
+
+### A14. Toasts are a scoped exception to A11
+
+A11 removed Zustand and settled on "TanStack Query owns server state and
+`useState` owns the rest," reasoning that every piece of state this app
+had needed turned out to be component-local. A toast queue does not fit
+that shape: it is triggered from wherever a mutation succeeds and rendered
+once, high in the tree, so it needs to live somewhere neither its producer
+nor its single consumer owns alone.
+
+A11's target was dependence on a state-management package, not React's
+own Context, but the distinction was never stated, so this amendment
+states it directly rather than leaving it implied.
+
+**Amended:** `ToastProvider` (`web/src/components/ToastProvider.tsx`) is a
+React Context wrapping a `useState` list, mounted once above the router.
+`useToast()` returns a `notify(message, tone?)` function; nothing else
+about A11 changes. This is scoped to toast notifications specifically and
+is not a general license for more shared client state. The next piece of
+state that looks like it needs to be global should still be checked for
+whether it is actually component-local first, the way A9 and this ADR's
+own history already show it usually is.
