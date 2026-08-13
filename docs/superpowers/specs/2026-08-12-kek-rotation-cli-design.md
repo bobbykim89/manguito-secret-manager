@@ -178,9 +178,7 @@ The rotation logic lives in an importable function, not only inside
 `main()`:
 
 ```python
-def run_rotation(
-    session: Session, provider: KeyProvider, target_version: int, dry_run: bool
-) -> RotationResult
+def run_rotation(session: Session, provider: KeyProvider, *, dry_run: bool) -> RotationResult
 ```
 
 `main()` wraps it: parses `--dry-run`, builds a real DB session against
@@ -230,8 +228,8 @@ raises rather than silently continuing past that bucket.
    `make migrate`.
 3. The target version is `KeyProvider.current_version`, never a separate
    argument.
-4. Each bucket rotates inside its own transaction, using
-   `get_bucket_for_update`.
+4. Each bucket rotates inside its own transaction, locked by primary key
+   (not `get_bucket_for_update`, which is scoped to one user).
 5. A bucket already on the target version is skipped, not re-rewrapped.
 6. Rerunning after an interruption resumes rather than restarting.
 7. An unwrap failure aborts the run rather than skipping that bucket.

@@ -28,19 +28,18 @@ def _no_other_buckets(db_session: Session) -> Iterator[None]:
     yield
 
 
-def test_summary_names_the_target_version_and_that_it_is_safe_to_remove_the_old_key() -> None:
-    """Reaching format_summary at all is the proof.
-
-    run_rotation either finishes every bucket in its snapshot or raises, so
-    by the time main() has a RotationResult to format, 0 remaining is
-    already true. format_summary states it without a further query.
+def test_summary_wording_names_the_target_version_and_the_new_counts() -> None:
+    """Formatting only. The actual "0 remain" evidence lives in
+    test_kek_rotation.py's test_partial_progress_is_durable_and_the_rerun_resumes,
+    which proves it via a real query after a real multi-bucket run rather
+    than by asserting a string constant against itself.
     """
     result = RotationResult(rotated=4812, already_current=0)
 
     text = format_summary(result, target_version=2)
 
-    assert "Rotated 4812 buckets to version 2." in text
-    assert "0 buckets remain on another version." in text
+    assert "Rotated 4812 of 4812 buckets to version 2." in text
+    assert "0 were already on version 2 before this run." in text
     assert "Safe to remove" in text
 
 
@@ -112,7 +111,7 @@ def test_main_runs_end_to_end_against_a_real_database(
         get_settings.cache_clear()
 
     captured = capsys.readouterr()
-    assert "Rotated 1 buckets to version 2." in captured.out
+    assert "Rotated 1 of 1 buckets to version 2." in captured.out
 
     db_session.expire_all()
     refreshed = db_session.get(Bucket, bucket_id)

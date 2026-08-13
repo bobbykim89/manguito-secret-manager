@@ -6,8 +6,12 @@ for why: a KEK has no shelf life a calendar can track, and rotation needs a
 human deciding it is time, not a cron window.
 
 The new KEK must already be in SECRETS_KEKS, with SECRETS_KEK_VERSION
-pointing at it, before this runs. That is a manual step this script cannot
-perform: it only ever touches Postgres.
+pointing at it, both in this script's own environment AND already deployed
+to the live API (Fly secrets, redeployed) before this runs. If the API is
+still running the old SECRETS_KEK_VERSION when this script runs, a bucket
+created during the run could still be minted on the old version and this
+script's snapshot would not include it. That deployment step is manual and
+this script cannot perform it: it only ever touches Postgres.
 """
 
 import argparse
@@ -25,9 +29,11 @@ def format_summary(result: RotationResult, *, target_version: int) -> str:
     # 0 remaining is not re-verified by a query here. run_rotation either
     # finishes rotating every bucket in its snapshot or raises before
     # returning, so a RotationResult reaching this function already proves
-    # nothing is left on another version.
+    # nothing is left on another version, for the buckets in that snapshot.
+    total = result.rotated + result.already_current
     return (
-        f"Rotated {result.rotated} buckets to version {target_version}.\n"
+        f"Rotated {result.rotated} of {total} buckets to version {target_version}.\n"
+        f"{result.already_current} were already on version {target_version} before this run.\n"
         f"0 buckets remain on another version.\n"
         f"Safe to remove the retired KEK version from SECRETS_KEKS."
     )

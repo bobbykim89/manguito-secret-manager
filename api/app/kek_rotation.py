@@ -43,9 +43,14 @@ def run_rotation(session: Session, provider: KeyProvider, *, dry_run: bool) -> R
     durable, so aborting costs nothing: fix the configuration and rerun.
 
     A caller that receives a RotationResult from a real (non dry) run knows,
-    without any further query, that every bucket is now on target_version:
-    this function either finishes rotating every id in to_rotate or raises
-    before returning at all.
+    without any further query, that every bucket in the snapshot this call
+    took is now on target_version: this function either finishes rotating
+    every id in to_rotate or raises before returning at all. This says
+    nothing about a bucket created after the snapshot was taken, which is
+    why the precondition in scripts/rotate_kek.py matters: the deployed
+    API's own SECRETS_KEK_VERSION has to already be at the target version
+    before this runs, or a new bucket could still be minted on the old one
+    during rotation.
     """
     target_version = provider.current_version
 
