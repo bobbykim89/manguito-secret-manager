@@ -93,10 +93,10 @@ export function AppShell() {
           </span>
         </div>
         <nav aria-label="Footer" className="flex gap-4 text-[13px]">
-          <NavLink to="/buckets" viewTransition>
+          <NavLink to="/buckets" viewTransition className="text-accent">
             Buckets
           </NavLink>
-          <NavLink to="/keys" viewTransition>
+          <NavLink to="/keys" viewTransition className="text-accent">
             Keys
           </NavLink>
         </nav>

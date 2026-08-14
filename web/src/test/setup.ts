@@ -19,6 +19,21 @@ Object.defineProperty(window, "matchMedia", {
   }),
 });
 
+/**
+ * jsdom has no document.startViewTransition. AppShell's links set
+ * viewTransition, so any test that navigates would otherwise print a
+ * console warning. Guarded so a real implementation is never overwritten.
+ */
+if (!("startViewTransition" in document)) {
+  Object.defineProperty(document, "startViewTransition", {
+    writable: true,
+    value: (callback: () => void) => {
+      callback();
+      return { finished: Promise.resolve(), ready: Promise.resolve(), updateCallbackDone: Promise.resolve() };
+    },
+  });
+}
+
 /** Shared MSW server. ADR 003 requires mocking at the fetch layer, not hooks. */
 export const server = setupServer();
 
@@ -29,6 +44,8 @@ beforeAll(() => {
 afterEach(() => {
   cleanup();
   server.resetHandlers();
+  window.localStorage.clear();
+  document.documentElement.removeAttribute("data-theme");
 });
 
 afterAll(() => {

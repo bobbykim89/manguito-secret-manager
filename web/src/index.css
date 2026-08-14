@@ -46,6 +46,7 @@
   --color-accent: #c67139;
   --color-accent-2: #7a8a5e;
   --color-danger: #b5432c;
+  --color-danger-600: #973823;
   --color-border: color-mix(in srgb, #201e1d 16%, transparent);
 
   --color-neutral-100: #f9f4ed;
@@ -106,6 +107,9 @@
   --color-accent: #ff8a54;
   --color-accent-2: #a7cd7a;
   --color-danger: #ff6b52;
+  --color-accent-600: #ffa06e;
+  --color-accent-700: #ffb589;
+  --color-danger-600: #ff8468;
   --color-border: color-mix(in srgb, #f1eee6 16%, transparent);
   --color-accent-100: #3a2a1c;
   --color-accent-800: #ffd4ab;

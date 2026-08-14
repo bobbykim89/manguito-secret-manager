@@ -95,4 +95,22 @@ describe("LoginPage", () => {
 
     expect(await screen.findByText("signed in area")).toBeInTheDocument();
   });
+
+  it("renders a top level heading for both the desktop panel and the mobile fallback", async () => {
+    // jsdom runs with css:false (see vite.config.ts), so the responsive
+    // hidden/md:hidden classes that make exactly one of these two <h1>s
+    // accessible at any given viewport have no effect here: both are always
+    // present in the tree. This cannot assert the "never both exposed"
+    // guarantee (that needs real layout, see the browser), but it does
+    // guard against either copy being deleted again, including a regression
+    // back to the single hoisted <h1> this test was added to catch.
+    unauthenticated();
+
+    renderLogin();
+
+    await screen.findByRole("link", { name: /continue with google/i });
+    expect(screen.getAllByRole("heading", { level: 1, name: /manguito secret manager/i })).toHaveLength(
+      2,
+    );
+  });
 });
