@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Alert } from "../../components/Alert";
 import { Modal } from "../../components/Modal";
@@ -14,6 +14,18 @@ import { useDeleteSecret, useSecretValue, type Secret } from "./useSecrets";
  * 7 exists to withhold.
  */
 const MASK = "••••••••";
+
+/**
+ * How long a revealed value stays on screen.
+ *
+ * Visual only, deliberately. The cached plaintext is left in place, so a
+ * re-reveal serves the cache and one visit still produces one secret.read
+ * audit row. ADR 003 A9 records why hiding is an affordance rather than a
+ * boundary, and the threat this addresses is an unattended screen, which
+ * re-masking covers fully. Purging the cache instead would charge a second
+ * audit row for what the user experiences as one visit.
+ */
+const AUTO_MASK_MS = 30_000;
 
 /**
  * One secret, owning its reveal flag, its dialog flag and its copy notice.
@@ -32,6 +44,16 @@ export function SecretRow({ bucket, secret }: { bucket: string; secret: Secret }
   const notify = useToast();
 
   const plaintext = revealed ? value.data?.value : undefined;
+
+  // Armed on the value arriving rather than on the click, so a slow fetch does
+  // not eat the reading window. The cleanup runs whenever the value leaves the
+  // screen, a manual Hide included, so no stale timer can fire against a later
+  // reveal.
+  useEffect(() => {
+    if (plaintext === undefined) return;
+    const timer = setTimeout(() => setRevealed(false), AUTO_MASK_MS);
+    return () => clearTimeout(timer);
+  }, [plaintext]);
 
   function toggleReveal() {
     setRevealed((was) => !was);
