@@ -3,7 +3,12 @@ import { useEffect, useState } from "react";
 import { Alert } from "../../components/Alert";
 import { Modal } from "../../components/Modal";
 import { useToast } from "../../components/useToast";
-import { useDeleteSecret, useSecretValue, type Secret } from "./useSecrets";
+import {
+  useDeleteSecret,
+  useFetchSecretValue,
+  useSecretValue,
+  type Secret,
+} from "./useSecrets";
 
 /**
  * A constant, never "•".repeat(value.length).
@@ -37,12 +42,19 @@ const AUTO_MASK_MS = 30_000;
 export function SecretRow({ bucket, secret }: { bucket: string; secret: Secret }) {
   const [revealed, setRevealed] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+  const [copyState, setCopyState] = useState<
+    "idle" | "copying" | "copied" | "clipboard-failed" | "fetch-failed"
+  >("idle");
 
   const value = useSecretValue(bucket, secret.key_name, revealed);
+  const fetchValue = useFetchSecretValue(bucket);
   const remove = useDeleteSecret(bucket);
   const notify = useToast();
 
+  // The `revealed` guard is what keeps the copy path from becoming a reveal.
+  // TanStack Query's enabled: false stops useSecretValue from fetching, not
+  // from reading a cache entry the copy path populated, so dropping this guard
+  // would put a value on screen that the user only asked to copy.
   const plaintext = revealed ? value.data?.value : undefined;
 
   // Armed on the value arriving rather than on the click, so a slow fetch does
@@ -60,14 +72,27 @@ export function SecretRow({ bucket, secret }: { bucket: string; secret: Secret }
     setCopyState("idle");
   }
 
-  async function copy(text: string) {
-    // Awaited in a try/catch: writeText rejects on a denied permission or a
-    // non secure context, and an unhandled rejection is an stderr line.
+  async function copy() {
+    setCopyState("copying");
+    let text: string;
     try {
+      // A local, never state. On this path the plaintext reaches the clipboard
+      // and nothing else: no DOM node, no toast, no error message.
+      text = (await fetchValue(secret.key_name)).value;
+    } catch {
+      // Same fixed sentence as a failed reveal, for the same reason: SP4 made
+      // decrypt failures carry no detail, so differentiating here would turn
+      // the error path into a channel.
+      setCopyState("fetch-failed");
+      return;
+    }
+    try {
+      // Awaited in a try/catch: writeText rejects on a denied permission or a
+      // non secure context, and an unhandled rejection is an stderr line.
       await navigator.clipboard.writeText(text);
       setCopyState("copied");
     } catch {
-      setCopyState("failed");
+      setCopyState("clipboard-failed");
     }
   }
 
@@ -99,16 +124,15 @@ export function SecretRow({ bucket, secret }: { bucket: string; secret: Secret }
           >
             {revealed ? "Hide" : "Reveal"}
           </button>
-          {plaintext !== undefined && (
-            <button
-              type="button"
-              aria-label={`Copy ${secret.key_name}`}
-              onClick={() => void copy(plaintext)}
-              className="rounded-md border border-border px-3 py-1 text-sm"
-            >
-              Copy
-            </button>
-          )}
+          <button
+            type="button"
+            aria-label={`Copy ${secret.key_name}`}
+            onClick={() => void copy()}
+            disabled={copyState === "copying"}
+            className="rounded-md border border-border px-3 py-1 text-sm disabled:opacity-50"
+          >
+            Copy
+          </button>
           <button
             type="button"
             aria-label={`Delete ${secret.key_name}`}
@@ -147,12 +171,22 @@ export function SecretRow({ bucket, secret }: { bucket: string; secret: Secret }
           a channel. */}
       {revealed && value.isError && <Alert variant="inline">Could not reveal this secret.</Alert>}
 
+      {copyState === "copying" && (
+        <p role="status" className="text-sm text-text-muted">
+          Copying
+        </p>
+      )}
       {copyState === "copied" && (
         <p role="status" className="text-sm text-text-muted">
           Copied
         </p>
       )}
-      {copyState === "failed" && <Alert variant="inline">Could not copy to the clipboard.</Alert>}
+      {copyState === "fetch-failed" && (
+        <Alert variant="inline">Could not reveal this secret.</Alert>
+      )}
+      {copyState === "clipboard-failed" && (
+        <Alert variant="inline">Could not copy to the clipboard.</Alert>
+      )}
 
       <Modal open={confirming} onClose={() => setConfirming(false)} title="Delete secret?">
         <div className="mt-4 flex flex-col gap-4">

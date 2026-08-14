@@ -1,3 +1,5 @@
+import { useCallback } from "react";
+
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { client, type ApiError } from "../../api/client";
@@ -38,28 +40,60 @@ export function useSecrets(bucket: string) {
 }
 
 /**
+ * The single definition of a value fetch, shared by the declarative reveal path
+ * and the imperative copy path.
+ *
+ * staleTime: Infinity lives here so both inherit it. Hiding and re-revealing
+ * serves the cache, and so does copying a value that is already revealed, so
+ * one visit produces one secret.read audit row however the user reaches the
+ * value. Once revealed it is in the tab's memory anyway, so hiding is a visual
+ * affordance rather than a security boundary, and counting clicks would make a
+ * misclick indistinguishable from a genuine second look at a credential.
+ *
+ * gcTime is deliberately left at the five minute default: navigating away
+ * unmounts the observer and the plaintext leaves memory without anyone writing
+ * code to do it.
+ */
+export const secretValueQueryOptions = (bucket: string, keyName: string) => ({
+  queryKey: secretValueQueryKey(bucket, keyName),
+  queryFn: () => client.get<SecretValue>(secretPath(bucket, keyName)),
+  staleTime: Infinity,
+});
+
+/**
  * One secret's plaintext, fetched only once the user asks for it.
  *
  * `enabled` is where invariant 7 lives in code: nothing about rendering the
  * list can cause a value fetch, because only a click flips this flag.
  *
- * staleTime is Infinity so hiding and re-revealing serves the cache and one
- * visit produces one secret.read audit row. Once a value has been revealed it
- * is in the tab's memory, so hiding is a visual affordance rather than a
- * security boundary, and counting clicks would make a misclick
- * indistinguishable from a genuine second look at a credential.
- *
- * gcTime is deliberately left at the five minute default: navigating away
- * unmounts the observer and the plaintext leaves memory without anyone
- * writing code to do it.
+ * It does not, however, stop this hook from returning a cache entry the copy
+ * path put there. SecretRow's `revealed` guard is what handles that; see the
+ * comment on its `plaintext`.
  */
 export function useSecretValue(bucket: string, keyName: string, revealed: boolean) {
   return useQuery<SecretValue, ApiError>({
-    queryKey: secretValueQueryKey(bucket, keyName),
-    queryFn: () => client.get<SecretValue>(secretPath(bucket, keyName)),
+    ...secretValueQueryOptions(bucket, keyName),
     enabled: revealed,
-    staleTime: Infinity,
   });
+}
+
+/**
+ * Fetches one value imperatively, for the copy path.
+ *
+ * ADR 003 line 70 requires copy to work without revealing, which the
+ * declarative hook above cannot express: its `enabled` flag is the reveal.
+ * This returns the plaintext to its caller and puts it nowhere else, so the
+ * caller can hand it to the clipboard without any state that would render it.
+ *
+ * Serves the cache when there is one, so copying an already revealed value
+ * costs no second audit row.
+ */
+export function useFetchSecretValue(bucket: string) {
+  const queryClient = useQueryClient();
+  return useCallback(
+    (keyName: string) => queryClient.fetchQuery(secretValueQueryOptions(bucket, keyName)),
+    [bucket, queryClient],
+  );
 }
 
 export function usePutSecret(bucket: string) {

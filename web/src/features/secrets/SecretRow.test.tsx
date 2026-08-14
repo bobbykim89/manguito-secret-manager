@@ -109,11 +109,143 @@ describe("SecretRow", () => {
     expect(within(row).getByRole("status")).toHaveTextContent(/copied/i);
   });
 
-  it("offers no copy button while the value is hidden", () => {
+  // Replaces "offers no copy button while the value is hidden". ADR 003 line 70
+  // requires copy to be available without revealing, so the old assertion
+  // encoded the gap rather than the requirement. This replacement is strictly
+  // stronger: it also proves the masked row shows no plaintext.
+  it("offers copy while the value is still masked", () => {
     renderRow();
     const row = screen.getByRole("listitem", { name: /DATABASE_URL/ });
 
-    expect(within(row).queryByRole("button", { name: /copy/i })).not.toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: /copy DATABASE_URL/i })).toBeInTheDocument();
+    expect(within(row).getByText(/•/)).toBeInTheDocument();
+  });
+
+  it("copies without revealing: one fetch, nothing on screen", async () => {
+    const user = userEvent.setup();
+    let fetches = 0;
+    server.use(
+      http.get(`${SECRETS}/DATABASE_URL`, () => {
+        fetches += 1;
+        return HttpResponse.json({
+          ok: true,
+          data: { ...aSecret("DATABASE_URL"), value: "postgres://x" },
+        });
+      }),
+    );
+    renderRow();
+    const row = screen.getByRole("listitem", { name: /DATABASE_URL/ });
+
+    await user.click(within(row).getByRole("button", { name: /copy DATABASE_URL/i }));
+
+    await waitFor(async () => expect(await navigator.clipboard.readText()).toBe("postgres://x"));
+    expect(fetches).toBe(1);
+    // Asserted against the whole document rather than the row: the value must
+    // not be anywhere, including in a portal or a status line.
+    expect(screen.queryByText("postgres://x")).not.toBeInTheDocument();
+    expect(within(row).getByText(/•/)).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: /reveal DATABASE_URL/i })).toBeInTheDocument();
+  });
+
+  it("copies an already revealed value from the cache, with no second fetch", async () => {
+    const user = userEvent.setup();
+    let fetches = 0;
+    server.use(
+      http.get(`${SECRETS}/DATABASE_URL`, () => {
+        fetches += 1;
+        return HttpResponse.json({
+          ok: true,
+          data: { ...aSecret("DATABASE_URL"), value: "postgres://x" },
+        });
+      }),
+    );
+    renderRow();
+    const row = screen.getByRole("listitem", { name: /DATABASE_URL/ });
+
+    await user.click(within(row).getByRole("button", { name: /reveal DATABASE_URL/i }));
+    await within(row).findByText("postgres://x");
+    await user.click(within(row).getByRole("button", { name: /copy DATABASE_URL/i }));
+
+    await waitFor(async () => expect(await navigator.clipboard.readText()).toBe("postgres://x"));
+    // One visit, one secret.read audit row. Copying what is already on screen
+    // must not charge a second read.
+    expect(fetches).toBe(1);
+  });
+
+  it("says nothing about why a copy's fetch failed, and stays masked", async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.get(`${SECRETS}/BROKEN`, () =>
+        HttpResponse.json(
+          { ok: false, error: { code: "INTERNAL_ERROR", message: "server detail" } },
+          { status: 500 },
+        ),
+      ),
+    );
+    renderRow("BROKEN");
+    const row = screen.getByRole("listitem", { name: /BROKEN/ });
+
+    await user.click(within(row).getByRole("button", { name: /copy BROKEN/i }));
+
+    const alert = await within(row).findByRole("alert");
+    expect(alert).toHaveTextContent(/could not reveal this secret/i);
+    expect(alert).not.toHaveTextContent(/server detail/i);
+    expect(within(row).getByText(/•/)).toBeInTheDocument();
+  });
+
+  it("reports a refused clipboard separately from a refused fetch", async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.get(`${SECRETS}/DATABASE_URL`, () =>
+        HttpResponse.json({ ok: true, data: { ...aSecret("DATABASE_URL"), value: "postgres://x" } }),
+      ),
+    );
+    renderRow();
+    const row = screen.getByRole("listitem", { name: /DATABASE_URL/ });
+    // The permission denial a non secure context produces, which is the real
+    // way this fails in a browser. Spied after userEvent.setup(), which
+    // installs the clipboard stub this replaces. `vi` is already imported in
+    // this file from the auto-mask task.
+    vi.spyOn(navigator.clipboard, "writeText").mockRejectedValue(new Error("denied"));
+
+    await user.click(within(row).getByRole("button", { name: /copy DATABASE_URL/i }));
+
+    expect(await within(row).findByRole("alert")).toHaveTextContent(
+      /could not copy to the clipboard/i,
+    );
+  });
+
+  it("refuses a second copy while the first is still in flight", async () => {
+    const user = userEvent.setup();
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let fetches = 0;
+    server.use(
+      http.get(`${SECRETS}/DATABASE_URL`, async () => {
+        fetches += 1;
+        await gate;
+        return HttpResponse.json({
+          ok: true,
+          data: { ...aSecret("DATABASE_URL"), value: "postgres://x" },
+        });
+      }),
+    );
+    renderRow();
+    const row = screen.getByRole("listitem", { name: /DATABASE_URL/ });
+
+    await user.click(within(row).getByRole("button", { name: /copy DATABASE_URL/i }));
+
+    // Disabled rather than merely idempotent: a double click would otherwise
+    // charge two secret.read audit rows for one user action.
+    await waitFor(() =>
+      expect(within(row).getByRole("button", { name: /copy DATABASE_URL/i })).toBeDisabled(),
+    );
+
+    release?.();
+    await waitFor(async () => expect(await navigator.clipboard.readText()).toBe("postgres://x"));
+    expect(fetches).toBe(1);
   });
 
   it("confirms before deleting and can be cancelled", async () => {
