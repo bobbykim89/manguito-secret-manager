@@ -1,8 +1,9 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { Link } from "react-router";
 
 import { Alert } from "../../components/Alert";
+import { ToggleSwitch } from "../../components/ToggleSwitch";
 import type { Bucket } from "../buckets/useBuckets";
 import {
   apiKeyFormSchema,
@@ -13,9 +14,10 @@ import {
 import { NewKeyPanel } from "./NewKeyPanel";
 import { useCreateApiKey } from "./useApiKeys";
 
-export function CreateKeyForm({ buckets }: { buckets: Bucket[] }) {
+export function CreateKeyFlow({ buckets }: { buckets: Bucket[] }) {
   const create = useCreateApiKey();
   const {
+    control,
     formState: { errors },
     handleSubmit,
     register,
@@ -102,7 +104,7 @@ export function CreateKeyForm({ buckets }: { buckets: Bucket[] }) {
       </fieldset>
       {errors.buckets && <Alert variant="inline">{errors.buckets.message}</Alert>}
 
-      <fieldset className="flex flex-col gap-1">
+      <fieldset className="flex flex-col gap-3">
         <legend className="text-sm font-medium">Capabilities</legend>
         {/* may_reveal gates only the bulk path in list_endpoint. The single
             key endpoint has no such check, so a key with neither flag can
@@ -112,22 +114,53 @@ export function CreateKeyForm({ buckets }: { buckets: Bucket[] }) {
           Any key can read secrets in these buckets one at a time. The options below grant more
           than that.
         </p>
-        <label className="flex items-start gap-2 text-sm">
-          <input type="checkbox" {...register("canWrite")} disabled={create.isPending} />
-          <span>
-            <span className="font-medium">Write secrets</span>
-            <br />
-            Create, overwrite and delete. Deleting a secret is permanent.
-          </span>
-        </label>
-        <label className="flex items-start gap-2 text-sm">
-          <input type="checkbox" {...register("canReveal")} disabled={create.isPending} />
-          <span>
-            <span className="font-medium">Bulk reveal</span>
-            <br />
-            Fetch every secret in a bucket in one request. A browser session can never do this.
-          </span>
-        </label>
+
+        <div className="flex items-start gap-2.5">
+          {/* ToggleSwitch renders a button, not a native input, so
+              register() cannot bind it. Controller is React Hook Form's own
+              answer for a controlled component, and keeps defaultValues,
+              validation and reset() all working. */}
+          <Controller
+            control={control}
+            name="canWrite"
+            render={({ field }) => (
+              <ToggleSwitch
+                checked={field.value}
+                onChange={field.onChange}
+                label="Write secrets"
+                disabled={create.isPending}
+              />
+            )}
+          />
+          <div>
+            <div className="text-sm">Write secrets</div>
+            <div className="text-xs text-text-muted">
+              Create, overwrite and delete. Deleting a secret is permanent.
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-start gap-2.5">
+          <Controller
+            control={control}
+            name="canReveal"
+            render={({ field }) => (
+              <ToggleSwitch
+                checked={field.value}
+                onChange={field.onChange}
+                label="Bulk reveal"
+                disabled={create.isPending}
+              />
+            )}
+          />
+          <div>
+            <div className="text-sm">Bulk reveal</div>
+            <div className="text-xs text-text-muted">
+              Fetch every secret in a bucket in one request. A browser session can never do
+              this.
+            </div>
+          </div>
+        </div>
       </fieldset>
 
       <label htmlFor="key-expiry" className="text-sm font-medium">

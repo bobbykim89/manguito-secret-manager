@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import { renderWithProviders } from "../../test/render";
 import { server } from "../../test/setup";
-import { CreateKeyForm } from "./CreateKeyForm";
+import { CreateKeyFlow } from "./CreateKeyFlow";
 
 const KEYS = "http://localhost:8000/v1/keys";
 
@@ -17,13 +17,13 @@ function aBucket(name: string) {
 /** A data router, because a successful create renders NewKeyPanel's blocker. */
 function renderForm(buckets = [aBucket("prod"), aBucket("dev")]) {
   const router = createMemoryRouter(
-    [{ path: "/keys", element: <CreateKeyForm buckets={buckets} /> }],
+    [{ path: "/keys", element: <CreateKeyFlow buckets={buckets} /> }],
     { initialEntries: ["/keys"] },
   );
   return renderWithProviders(<RouterProvider router={router} />);
 }
 
-describe("CreateKeyForm", () => {
+describe("CreateKeyFlow", () => {
   it("sends the chosen name, buckets, flags and an expiry instant", async () => {
     let body: Record<string, unknown> | undefined;
     server.use(
@@ -54,7 +54,7 @@ describe("CreateKeyForm", () => {
 
     await userEvent.type(screen.getByLabelText(/name/i), "ci-deploy");
     await userEvent.click(screen.getByRole("checkbox", { name: "prod" }));
-    await userEvent.click(screen.getByRole("checkbox", { name: /write secrets/i }));
+    await userEvent.click(screen.getByRole("switch", { name: /write secrets/i }));
     await userEvent.click(screen.getByRole("button", { name: /create key/i }));
 
     await waitFor(() => expect(body).toBeDefined());
@@ -128,8 +128,8 @@ describe("CreateKeyForm", () => {
     // may_reveal gates only the bulk path. A key without it still reads
     // secrets one at a time, and the form must not imply otherwise.
     expect(screen.getByText(/read secrets in these buckets one at a time/i)).toBeInTheDocument();
-    expect(screen.getByRole("checkbox", { name: /bulk reveal/i })).toBeInTheDocument();
-    expect(screen.queryByRole("checkbox", { name: /^reveal secrets$/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: /bulk reveal/i })).toBeInTheDocument();
+    expect(screen.queryByRole("switch", { name: /^reveal secrets$/i })).not.toBeInTheDocument();
   });
 
   it("replaces itself with the token panel on success", async () => {
@@ -228,7 +228,7 @@ describe("CreateKeyForm", () => {
   it("tells an account with no buckets to make one first", () => {
     renderWithProviders(
       <MemoryRouter>
-        <CreateKeyForm buckets={[]} />
+        <CreateKeyFlow buckets={[]} />
       </MemoryRouter>,
     );
 

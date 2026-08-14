@@ -1,6 +1,6 @@
 import { Alert } from "../../components/Alert";
 import { useBuckets } from "../buckets/useBuckets";
-import { CreateKeyForm } from "./CreateKeyForm";
+import { CreateKeyFlow } from "./CreateKeyFlow";
 import { KeyRow } from "./KeyRow";
 import { useApiKeys } from "./useApiKeys";
 
@@ -22,7 +22,7 @@ export function KeysPage() {
         {/* Gated on data existing, not merely rendered with a fallback of []:
             useBuckets is undefined while pending, and an empty array would show
             the "create a bucket first" state to an account that has plenty. */}
-        {buckets.data && <CreateKeyForm buckets={buckets.data} />}
+        {buckets.data && <CreateKeyFlow buckets={buckets.data} />}
 
         {keys.isPending && (
           <p role="status" className="text-sm text-slate-600">
