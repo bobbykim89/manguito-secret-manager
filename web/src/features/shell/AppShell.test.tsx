@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter, MemoryRouter, RouterProvider } from "react-router";
@@ -82,11 +82,12 @@ describe("AppShell navigation", () => {
 
     renderShell();
 
-    expect(await screen.findByRole("link", { name: "Buckets" })).toHaveAttribute(
+    const header = await screen.findByRole("banner");
+    expect(within(header).getByRole("link", { name: "Buckets" })).toHaveAttribute(
       "href",
       "/buckets",
     );
-    expect(screen.getByRole("link", { name: "Keys" })).toHaveAttribute("href", "/keys");
+    expect(within(header).getByRole("link", { name: "Keys" })).toHaveAttribute("href", "/keys");
   });
 
   it("marks the current destination", async () => {
@@ -97,11 +98,14 @@ describe("AppShell navigation", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole("link", { name: "Keys" })).toHaveAttribute(
+    const header = await screen.findByRole("banner");
+    expect(within(header).getByRole("link", { name: "Keys" })).toHaveAttribute(
       "aria-current",
       "page",
     );
-    expect(screen.getByRole("link", { name: "Buckets" })).not.toHaveAttribute("aria-current");
+    expect(within(header).getByRole("link", { name: "Buckets" })).not.toHaveAttribute(
+      "aria-current",
+    );
   });
 
   it("keeps Buckets current inside a bucket, since a secret list is still buckets", async () => {
@@ -114,9 +118,51 @@ describe("AppShell navigation", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole("link", { name: "Buckets" })).toHaveAttribute(
+    const header = await screen.findByRole("banner");
+    expect(within(header).getByRole("link", { name: "Buckets" })).toHaveAttribute(
       "aria-current",
       "page",
     );
+  });
+});
+
+describe("AppShell chrome", () => {
+  it("renders the footer with its copyright", async () => {
+    signedIn();
+
+    renderShell();
+
+    const footer = await screen.findByRole("contentinfo");
+    expect(within(footer).getByText(/© 2026 Manguito Secret Manager/)).toBeInTheDocument();
+    expect(within(footer).getByRole("link", { name: "Buckets" })).toHaveAttribute(
+      "href",
+      "/buckets",
+    );
+    expect(within(footer).getByRole("link", { name: "Keys" })).toHaveAttribute("href", "/keys");
+  });
+
+  it("offers a dark mode switch that reflects the resolved theme", async () => {
+    signedIn();
+    window.localStorage.clear();
+    document.documentElement.removeAttribute("data-theme");
+
+    renderShell();
+
+    const toggle = await screen.findByRole("switch", { name: "Dark mode" });
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("switches the document to dark and persists the choice", async () => {
+    signedIn();
+    window.localStorage.clear();
+    document.documentElement.removeAttribute("data-theme");
+    const user = userEvent.setup();
+
+    renderShell();
+
+    await user.click(await screen.findByRole("switch", { name: "Dark mode" }));
+
+    expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+    expect(window.localStorage.getItem("theme")).toBe("dark");
   });
 });

@@ -342,3 +342,34 @@ is not a general license for more shared client state. The next piece of
 state that looks like it needs to be global should still be checked for
 whether it is actually component-local first, the way A9 and this ADR's
 own history already show it usually is.
+
+### A15. The theme toggle ships, and the palette is the design system's
+
+A13 recorded that no page or component called `setPreference`, and named
+the login and shell piece as where a toggle would arrive. This is that
+piece, so that sentence no longer holds.
+
+**Amended:** `AppShell` renders a `ToggleSwitch` labelled "Dark mode" that
+calls `setPreference`. It is binary, so the first click moves a user from
+`system` to an explicit preference and there is no in-app path back.
+`system` remains the default for anyone who never touches it. A three
+state control would need a component that does not exist and would leave
+`ToggleSwitch` without a consumer until the API keys piece.
+
+**Also amended, and more consequential:** the token values A13 described
+were invented. The foundation's plan was written before the mockup's
+design system source had been read, and filled the gap with plausible
+indigo and slate rather than real values. They compiled cleanly, so
+nothing downstream caught it.
+
+The palette is now the Organic design system's own: warm terracotta
+(`#c67139`) and olive (`#7a8a5e`) on a cream ground (`#f5ead8`), keyed to
+the Manguito lovebird logo, with both accent ramps at 100 through 900 and
+Organic's own dark overrides. Inter is kept for headings, buttons and the
+brand wordmark, matching the mockup's explicit override of Organic's
+heading font, and Figtree is self hosted for body text on the same terms
+Inter already was: no runtime request to a font CDN from a page that also
+handles Google sign in.
+
+A13 should not be read as evidence that the original values were ever
+chosen deliberately. Nothing else in A13 changes.

@@ -267,7 +267,7 @@ it("walks from the bucket list to the keys page through the nav bar", async () =
   renderWithProviders(<RouterProvider router={router} />);
   await screen.findByRole("heading", { name: /buckets/i });
 
-  await userEvent.click(screen.getByRole("link", { name: "Keys" }));
+  await userEvent.click(within(screen.getByRole("banner")).getByRole("link", { name: "Keys" }));
 
   expect(await screen.findByRole("heading", { name: /api keys/i })).toBeInTheDocument();
   expect(router.state.location.pathname).toBe("/keys");

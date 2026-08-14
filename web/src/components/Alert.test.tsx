@@ -21,4 +21,14 @@ describe("Alert", () => {
 
     expect(screen.getByRole("alert")).toHaveTextContent("Sign in did not complete.");
   });
+
+  it("sets its own text colour, so a banner stays readable on a dark surface", () => {
+    // The sign out error renders outside the light pinned main, so it cannot
+    // rely on inheriting a dark text colour from an ancestor.
+    const { rerender } = render(<Alert>Something failed.</Alert>);
+    expect(screen.getByRole("alert").className).toMatch(/text-red-900/);
+
+    rerender(<Alert tone="warning">Careful.</Alert>);
+    expect(screen.getByRole("alert").className).toMatch(/text-amber-900/);
+  });
 });

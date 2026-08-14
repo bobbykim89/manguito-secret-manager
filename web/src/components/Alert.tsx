@@ -19,8 +19,8 @@ export function Alert({
 }) {
   const palette =
     tone === "warning"
-      ? { banner: "border-amber-300 bg-amber-50", inline: "text-amber-700" }
-      : { banner: "border-red-300 bg-red-50", inline: "text-red-700" };
+      ? { banner: "border-amber-300 bg-amber-50 text-amber-900", inline: "text-amber-700" }
+      : { banner: "border-red-300 bg-red-50 text-red-900", inline: "text-red-700" };
 
   const className =
     variant === "banner"

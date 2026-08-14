@@ -16,43 +16,131 @@
   src: url("/fonts/inter-600.woff2") format("woff2");
 }
 
+@font-face {
+  font-family: "Figtree";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/figtree-400.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Figtree";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/figtree-600.woff2") format("woff2");
+}
+
+/*
+ * The Organic design system's palette, warm terracotta and olive, keyed to
+ * the Manguito lovebird logo. These are the design system's real values.
+ * The indigo and slate this replaced were invented when the foundation was
+ * planned, before its source was read. See ADR 003 A15.
+ */
 @theme {
-  --color-bg: #ffffff;
-  --color-surface: #f8fafc;
-  --color-text: #0f172a;
-  --color-text-muted: #64748b;
-  --color-accent: #4f46e5;
-  --color-danger: #dc2626;
-  --color-border: #e2e8f0;
+  --color-bg: #f5ead8;
+  --color-surface: #ebddc5;
+  --color-text: #201e1d;
+  --color-text-muted: color-mix(in srgb, #201e1d 55%, transparent);
+  --color-accent: #c67139;
+  --color-accent-2: #7a8a5e;
+  --color-danger: #b5432c;
+  --color-danger-600: #973823;
+  --color-border: color-mix(in srgb, #201e1d 16%, transparent);
+
+  --color-neutral-100: #f9f4ed;
+  --color-neutral-200: #eee7db;
+  --color-neutral-300: #dcd3c4;
+  --color-neutral-400: #c0b6a5;
+  --color-neutral-500: #a19786;
+  --color-neutral-600: #82796a;
+  --color-neutral-700: #645c50;
+  --color-neutral-800: #474238;
+  --color-neutral-900: #2e2b25;
+
+  --color-accent-100: #fff2eb;
+  --color-accent-200: #ffe1d0;
+  --color-accent-300: #ffc6a5;
+  --color-accent-400: #f6a06b;
+  --color-accent-500: #d67f48;
+  --color-accent-600: #b2622d;
+  --color-accent-700: #8c491a;
+  --color-accent-800: #643312;
+  --color-accent-900: #402310;
+
+  --color-accent-2-100: #f0fae1;
+  --color-accent-2-200: #e1eecc;
+  --color-accent-2-300: #ccdbb2;
+  --color-accent-2-400: #aebf92;
+  --color-accent-2-500: #8fa073;
+  --color-accent-2-600: #728157;
+  --color-accent-2-700: #56633f;
+  --color-accent-2-800: #3d472b;
+  --color-accent-2-900: #272e1b;
+
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Figtree", ui-sans-serif, system-ui, sans-serif;
+
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 28px;
 }
 
 /*
  * Selector-based, not Tailwind's default prefers-color-scheme media variant.
- * A manual toggle (added in the next follow-up piece) has to be able to
- * override system preference, which a media-query variant cannot do.
+ * The manual toggle in AppShell has to be able to override system
+ * preference, which a media-query variant cannot do.
  */
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
+/*
+ * Overrides exactly what the mockup overrides and no more. Unlike the
+ * @theme block above, this is plain CSS and is not tree-shaken, so every
+ * line here ships.
+ */
 [data-theme="dark"] {
-  --color-bg: #0f172a;
-  --color-surface: #1e293b;
-  --color-text: #f1f5f9;
-  --color-text-muted: #94a3b8;
-  --color-accent: #818cf8;
-  --color-danger: #f87171;
-  --color-border: #334155;
+  --color-bg: #1a1b1f;
+  --color-surface: #24252b;
+  --color-text: #f1eee6;
+  --color-text-muted: color-mix(in srgb, #f1eee6 55%, transparent);
+  --color-accent: #ff8a54;
+  --color-accent-2: #a7cd7a;
+  --color-danger: #ff6b52;
+  --color-accent-600: #ffa06e;
+  --color-accent-700: #ffb589;
+  --color-danger-600: #ff8468;
+  --color-border: color-mix(in srgb, #f1eee6 16%, transparent);
+  --color-accent-100: #3a2a1c;
+  --color-accent-800: #ffd4ab;
+  --color-accent-2-100: #28331f;
+  --color-accent-2-800: #d5e8b5;
+  --color-neutral-100: #2c2d33;
+  --color-neutral-800: #dcd8ce;
 }
 
 body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+}
+
+/*
+ * Inter for headings, buttons and the brand wordmark; Figtree for body
+ * text. This follows the mockup, which overrides the Organic system's own
+ * heading font to force Inter in exactly these places.
+ */
+h1,
+h2,
+h3,
+h4 {
   font-family: var(--font-sans);
 }
 
 /*
- * React Router's viewTransition navigation option (wired up in the
- * login/shell follow-up piece) targets the whole document under the
- * transition name "root" by default. No extra markup is needed for that;
- * this is only the animation the browser plays during the transition.
+ * React Router's viewTransition navigation option targets the whole
+ * document under the transition name "root" by default. No extra markup is
+ * needed for that; this is only the animation the browser plays.
  */
 ::view-transition-old(root) {
   animation: 150ms ease-out both page-fade-out;
