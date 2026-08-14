@@ -373,3 +373,70 @@ handles Google sign in.
 
 A13 should not be read as evidence that the original values were ever
 chosen deliberately. Nothing else in A13 changes.
+
+### A16. Auto-mask and copy-without-reveal are built, and the reveal guard is load-bearing
+
+Two of this ADR's security-relevant UI requirements went unbuilt through SP7
+and stayed that way until the secrets reskin: "revealed values auto-mask after
+a timeout" and "copy-to-clipboard is available without revealing". The body
+also never said how long the timeout was, so the requirement was not
+implementable as written.
+
+**Amended:** both are built, on these terms.
+
+Auto-mask is 30 seconds, timed from the plaintext reaching the screen rather
+than from the reveal click, so a slow fetch does not consume the window. It is
+visual only: the cached value is left in place, so a re-reveal serves the cache
+and one visit still produces one `secret.read` audit row. That follows A9,
+which established that hiding is an affordance rather than a boundary because
+the value is in the tab's memory either way. The threat auto-mask addresses is
+an unattended or overlooked screen, which re-masking covers fully. Purging the
+cache instead would charge a second audit row for what the user experiences as
+one visit, and A9 deliberately avoided exactly that.
+
+Copy without revealing fetches the value imperatively through
+`queryClient.fetchQuery` and the shared `secretValueQueryOptions`, rather than
+through `useSecretValue`, whose `enabled` flag *is* the reveal. The plaintext
+exists on that path only as a local variable handed to `writeText`. It reaches
+no DOM node, no toast and no error message, which keeps it inside invariant 8
+and under A10's clipboard exception. Because the shared options carry
+`staleTime: Infinity`, copying an already revealed value serves the cache and
+costs no second audit row.
+
+One consequence is easy to miss and would be a security regression rather than
+a cosmetic one. TanStack Query's `enabled: false` prevents fetching, not
+reading: once the copy path has populated `["secret-value", bucket, keyName]`,
+`useSecretValue` returns that entry for the same row even though `revealed` is
+`false`. `SecretRow`'s
+
+```ts
+const plaintext = revealed ? value.data?.value : undefined;
+```
+
+is the only thing standing between a copy and an unintended reveal. It must not
+be simplified to `value.data?.value` on the reasoning that a disabled query has
+no data to read.
+
+A14's toast exception is read as permitting success toasts, not mandating them
+everywhere. Add, replace and delete raise one; copy keeps its adjacent inline
+"Copied" line, because copy is the highest-frequency action on the page and a
+toast per copy is noise.
+
+One more reconciliation belongs here. The body's security-relevant
+requirements say an unrevealed secret's plaintext "never enters the DOM or the
+JS heap," and copy-without-reveal contradicts that clause as written: it
+fetches a value the user never revealed and writes it into the TanStack Query
+cache, under `["secret-value", bucket, keyName]`, where it sits for up to five
+minutes with `revealed` still false. That cache entry is the point of the
+feature, not a leak. It is gated behind an explicit click, it is never
+rendered, and `SecretRow`'s `revealed` guard above is exactly what keeps it
+from surfacing as an unintended reveal. The body's "or the JS heap" clause is
+narrowed by this amendment to mean no plaintext enters the heap for a value
+the user has not explicitly asked for, whether that ask is a reveal or a
+copy. Read the same way, CLAUDE.md's invariant 7, "the frontend must not
+fetch a value until the user clicks reveal," is stating the same narrower
+rule in its own words rather than a literal restriction to the Reveal button.
+Its operative content is the absence of a render-triggered or automatic
+fetch; Copy is also an explicit user action, and was always meant to satisfy
+it. CLAUDE.md's own wording is worth tightening to say so directly, but that
+file is out of scope for this branch and is not touched here.

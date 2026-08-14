@@ -172,11 +172,14 @@ describe("ADR 003 A4: the web session never asks for bulk reveal", () => {
 
     await userEvent.click(within(row).getByRole("button", { name: /reveal A/i }));
     await within(row).findByText("s3cr3t");
-    await userEvent.type(screen.getByLabelText(/key name/i), "B");
-    await userEvent.type(screen.getByLabelText(/value/i), "v");
     await userEvent.click(screen.getByRole("button", { name: /add secret/i }));
+    const addDialog = await screen.findByRole("dialog", { name: /add secret/i });
+    await userEvent.type(within(addDialog).getByLabelText(/key name/i), "B");
+    await userEvent.type(within(addDialog).getByLabelText(/value/i), "v");
+    await userEvent.click(within(addDialog).getByRole("button", { name: /add secret/i }));
     await userEvent.click(within(row).getByRole("button", { name: /delete A/i }));
-    await userEvent.click(within(row).getByRole("button", { name: /confirm deleting A/i }));
+    const deleteDialog = await screen.findByRole("dialog", { name: /delete secret/i });
+    await userEvent.click(within(deleteDialog).getByRole("button", { name: /delete secret/i }));
 
     await waitFor(() => expect(requested.length).toBeGreaterThan(3));
     // Asserted across every request rather than one URL, so the guarantee
@@ -239,12 +242,14 @@ describe("the byte limit stops before the network", () => {
     const singleKey = () => requested.filter((url) => /\/secrets\/[^/]+$/.test(url));
     const before = singleKey().length;
 
-    await userEvent.type(screen.getByLabelText(/key name/i), "BIG");
+    await userEvent.click(screen.getByRole("button", { name: /add secret/i }));
+    const bigDialog = await screen.findByRole("dialog", { name: /add secret/i });
+    await userEvent.type(within(bigDialog).getByLabelText(/key name/i), "BIG");
     // 30,000 characters, 90,000 bytes. Typing that through userEvent is far
     // too slow, so the value is set the way a paste would set it.
-    await userEvent.click(screen.getByLabelText(/value/i));
+    await userEvent.click(within(bigDialog).getByLabelText(/value/i));
     await userEvent.paste("中".repeat(30_000));
-    await userEvent.click(screen.getByRole("button", { name: /add secret/i }));
+    await userEvent.click(within(bigDialog).getByRole("button", { name: /add secret/i }));
 
     expect(await screen.findByText(/at most 64 KiB/i)).toBeInTheDocument();
     expect(singleKey()).toHaveLength(before);
@@ -300,7 +305,8 @@ describe("the bucket list learns about a deleted secret", () => {
     ]);
 
     await userEvent.click(within(row).getByRole("button", { name: /delete A/i }));
-    await userEvent.click(within(row).getByRole("button", { name: /confirm deleting A/i }));
+    const secretDialog = await screen.findByRole("dialog", { name: /delete secret/i });
+    await userEvent.click(within(secretDialog).getByRole("button", { name: /delete secret/i }));
 
     // The direct falsification: BucketsPage is not mounted at this point, so a
     // UI walk-through alone cannot tell "invalidated" apart from "always

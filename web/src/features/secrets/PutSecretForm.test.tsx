@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "../../test/render";
 import { server } from "../../test/setup";
@@ -111,5 +111,91 @@ describe("PutSecretForm", () => {
 
     await waitFor(() => expect(screen.getByLabelText(/key name/i)).toHaveValue(""));
     expect(screen.getByLabelText(/value/i)).toHaveValue("");
+  });
+
+  it("reports a new key as added", async () => {
+    const onCreated = vi.fn();
+    server.use(
+      http.put(`${SECRETS}/NEW_KEY`, () =>
+        HttpResponse.json({ ok: true, data: aSecret("NEW_KEY") }),
+      ),
+    );
+    renderWithProviders(
+      <PutSecretForm bucket="alpha" existingKeys={["OTHER"]} onCreated={onCreated} />,
+    );
+
+    await userEvent.type(screen.getByLabelText(/key name/i), "NEW_KEY");
+    await userEvent.type(screen.getByLabelText(/value/i), "v");
+    await userEvent.click(screen.getByRole("button", { name: /add secret/i }));
+
+    await waitFor(() =>
+      expect(onCreated).toHaveBeenCalledWith({ keyName: "NEW_KEY", replaced: false }),
+    );
+  });
+
+  it("reports an overwritten key as replaced", async () => {
+    const onCreated = vi.fn();
+    server.use(
+      http.put(`${SECRETS}/DATABASE_URL`, () =>
+        HttpResponse.json({ ok: true, data: aSecret("DATABASE_URL") }),
+      ),
+    );
+    renderWithProviders(
+      <PutSecretForm
+        bucket="alpha"
+        existingKeys={["DATABASE_URL"]}
+        onCreated={onCreated}
+      />,
+    );
+
+    await userEvent.type(screen.getByLabelText(/key name/i), "DATABASE_URL");
+    await userEvent.type(screen.getByLabelText(/value/i), "v");
+    await userEvent.click(screen.getByRole("button", { name: /replace secret/i }));
+
+    await waitFor(() =>
+      expect(onCreated).toHaveBeenCalledWith({ keyName: "DATABASE_URL", replaced: true }),
+    );
+  });
+
+  it("stays put and reports nothing when the write fails", async () => {
+    const onCreated = vi.fn();
+    server.use(
+      http.put(`${SECRETS}/NEW_KEY`, () =>
+        HttpResponse.json(
+          { ok: false, error: { code: "INTERNAL_ERROR", message: "Boom." } },
+          { status: 500 },
+        ),
+      ),
+    );
+    renderWithProviders(
+      <PutSecretForm bucket="alpha" existingKeys={[]} onCreated={onCreated} />,
+    );
+
+    await userEvent.type(screen.getByLabelText(/key name/i), "NEW_KEY");
+    await userEvent.type(screen.getByLabelText(/value/i), "v");
+    await userEvent.click(screen.getByRole("button", { name: /add secret/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/boom/i);
+    expect(onCreated).not.toHaveBeenCalled();
+    // What was typed survives a failure. Retyping a value the server just
+    // rejected is pure friction.
+    expect(screen.getByLabelText(/key name/i)).toHaveValue("NEW_KEY");
+  });
+
+  it("draws no cancel button when there is nothing to cancel back to", () => {
+    renderWithProviders(<PutSecretForm bucket="alpha" existingKeys={[]} />);
+
+    expect(screen.queryByRole("button", { name: /cancel/i })).not.toBeInTheDocument();
+  });
+
+  it("cancels through the callback when one is given", async () => {
+    const onCancel = vi.fn();
+    renderWithProviders(
+      <PutSecretForm bucket="alpha" existingKeys={[]} onCancel={onCancel} />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /cancel/i }));
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
   });
 });

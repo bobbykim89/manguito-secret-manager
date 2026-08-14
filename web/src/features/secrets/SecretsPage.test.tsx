@@ -1,4 +1,5 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { describe, expect, it } from "vitest";
@@ -105,8 +106,116 @@ describe("SecretsPage", () => {
     renderPage();
     await screen.findByRole("listitem", { name: /DATABASE_URL/ });
 
-    // Proven through the behaviour the prop exists for, not by inspecting props.
-    const form = screen.getByRole("form", { name: /add or replace a secret/i });
-    expect(within(form).getByRole("button", { name: /add secret/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /add secret/i }));
+    const dialog = await screen.findByRole("dialog", { name: /add secret/i });
+    await userEvent.type(within(dialog).getByLabelText(/key name/i), "DATABASE_URL");
+
+    // Proven through the behaviour the prop exists for: the button only warns
+    // about a replace if the page actually handed the form the existing keys.
+    expect(
+      await within(dialog).findByRole("button", { name: /replace secret/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("opens the add dialog from the header", async () => {
+    server.use(http.get(SECRETS, () => HttpResponse.json({ ok: true, data: [] })));
+    renderPage();
+    await screen.findByText(/no secrets yet/i);
+
+    await userEvent.click(screen.getByRole("button", { name: /add secret/i }));
+
+    expect(await screen.findByRole("dialog", { name: /add secret/i })).toBeInTheDocument();
+  });
+
+  it("opens the add dialog from the empty state", async () => {
+    server.use(http.get(SECRETS, () => HttpResponse.json({ ok: true, data: [] })));
+    renderPage();
+
+    await userEvent.click(await screen.findByRole("button", { name: /add your first secret/i }));
+
+    expect(await screen.findByRole("dialog", { name: /add secret/i })).toBeInTheDocument();
+  });
+
+  it("closes the dialog and says so once a secret is written", async () => {
+    server.use(
+      http.get(SECRETS, () => HttpResponse.json({ ok: true, data: [] })),
+      http.put(`${SECRETS}/NEW_KEY`, () =>
+        HttpResponse.json({ ok: true, data: aSecret("NEW_KEY") }),
+      ),
+    );
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: /add secret/i }));
+    const dialog = await screen.findByRole("dialog", { name: /add secret/i });
+
+    await userEvent.type(within(dialog).getByLabelText(/key name/i), "NEW_KEY");
+    await userEvent.type(within(dialog).getByLabelText(/value/i), "v");
+    await userEvent.click(within(dialog).getByRole("button", { name: /add secret/i }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(await screen.findByText(/secret NEW_KEY added/i)).toBeInTheDocument();
+  });
+
+  it("says replaced, not added, for a key that already exists", async () => {
+    server.use(
+      http.get(SECRETS, () => HttpResponse.json({ ok: true, data: [aSecret("DATABASE_URL")] })),
+      http.put(`${SECRETS}/DATABASE_URL`, () =>
+        HttpResponse.json({ ok: true, data: aSecret("DATABASE_URL") }),
+      ),
+    );
+    renderPage();
+    await screen.findByRole("listitem", { name: /DATABASE_URL/ });
+
+    await userEvent.click(screen.getByRole("button", { name: /add secret/i }));
+    const dialog = await screen.findByRole("dialog", { name: /add secret/i });
+
+    await userEvent.type(within(dialog).getByLabelText(/key name/i), "DATABASE_URL");
+    await userEvent.type(within(dialog).getByLabelText(/value/i), "v2");
+    await userEvent.click(within(dialog).getByRole("button", { name: /replace secret/i }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(await screen.findByText(/secret DATABASE_URL replaced/i)).toBeInTheDocument();
+    expect(screen.queryByText(/secret DATABASE_URL added/i)).not.toBeInTheDocument();
+  });
+
+  it("keeps the dialog open when the write fails", async () => {
+    server.use(
+      http.get(SECRETS, () => HttpResponse.json({ ok: true, data: [] })),
+      http.put(`${SECRETS}/NEW_KEY`, () =>
+        HttpResponse.json(
+          { ok: false, error: { code: "INTERNAL_ERROR", message: "Boom." } },
+          { status: 500 },
+        ),
+      ),
+    );
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: /add secret/i }));
+    const dialog = await screen.findByRole("dialog", { name: /add secret/i });
+
+    await userEvent.type(within(dialog).getByLabelText(/key name/i), "NEW_KEY");
+    await userEvent.type(within(dialog).getByLabelText(/value/i), "v");
+    await userEvent.click(within(dialog).getByRole("button", { name: /add secret/i }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(/boom/i);
+    expect(screen.getByRole("dialog", { name: /add secret/i })).toBeInTheDocument();
+  });
+
+  it("writes nothing when the dialog is cancelled", async () => {
+    let writes = 0;
+    server.use(
+      http.get(SECRETS, () => HttpResponse.json({ ok: true, data: [] })),
+      http.put(`${SECRETS}/:key`, () => {
+        writes += 1;
+        return HttpResponse.json({ ok: true, data: aSecret("NEW_KEY") });
+      }),
+    );
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: /add secret/i }));
+    const dialog = await screen.findByRole("dialog", { name: /add secret/i });
+
+    await userEvent.type(within(dialog).getByLabelText(/key name/i), "NEW_KEY");
+    await userEvent.click(within(dialog).getByRole("button", { name: /^cancel$/i }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(writes).toBe(0);
   });
 });
