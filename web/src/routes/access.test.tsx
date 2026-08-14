@@ -184,7 +184,8 @@ it("sends the user to login when a mutation is unauthorised", async () => {
   const row = await screen.findByRole("listitem", { name: /doomed/i });
 
   await userEvent.click(within(row).getByRole("button", { name: /^delete$/i }));
-  await userEvent.click(within(row).getByRole("button", { name: /yes/i }));
+  const dialog = await screen.findByRole("dialog", { name: /delete bucket/i });
+  await userEvent.click(within(dialog).getByRole("button", { name: /delete bucket/i }));
 
   expect(await screen.findByRole("link", { name: /continue with google/i })).toBeInTheDocument();
 });
