@@ -440,3 +440,54 @@ Its operative content is the absence of a render-triggered or automatic
 fetch; Copy is also an explicit user action, and was always meant to satisfy
 it. CLAUDE.md's own wording is worth tightening to say so directly, but that
 file is out of scope for this branch and is not touched here.
+
+### A17. The UI modernization is complete, and what it settled
+
+Five sub-projects reskinned this frontend onto the Organic design system:
+foundation, login and shell, buckets, secrets, API keys. This records the end
+state, so the next reader does not have to infer it from five specs.
+
+**Amended:** the following are now true of the whole frontend.
+
+The light mode pin is gone. While the reskin was in flight, each unconverted
+page wrapped itself in `bg-white text-slate-900` so dark mode could ship before
+every page was ready. Each piece deleted its own pin as it converted its page,
+and the API keys piece deleted the last one.
+`grep -rn "bg-white\|bg-slate\|text-slate" web/src/features/` returns nothing.
+
+Every confirmation is a `Modal`. `ConfirmPrompt`, the inline confirm this
+frontend started with, is deleted. Its last consumer was `KeyRow`.
+
+`Modal` bounds its own height and scrolls internally. Its backdrop is `fixed`
+and does not scroll, so an unbounded panel taller than the viewport put its own
+heading above the top edge with no way to reach it. The API keys create dialog
+is the body that exposed this.
+
+Only the **100 and 800** steps of each colour ramp have dark mode values. Steps
+200 through 700 and 900 are light mode only. A chip or tag using another step
+renders a light element on a dark page, which is the defect that hit `Alert`'s
+inline variant in the secrets piece. `KeyRow`'s tag tones stay inside 100/800
+and say so in a comment.
+
+`ToggleSwitch` has a second consumer. A5 planned a client state library around
+reveal toggles, A9 corrected that, and A11 removed the library when no consumer
+appeared. The switch component itself did arrive, and the API keys capability
+flags are its second real use after the theme toggle. Because it renders a
+`<button role="switch">` rather than a native input, React Hook Form binds it
+with `Controller` rather than `register()`.
+
+Key creation fires no toast. Every other state changing success in the app does
+(A14), but the token panel is already an unmissable confirmation whose actual
+message is "save this now or lose it", and a toast would compete with it. A14 is
+read as permitting success toasts rather than mandating them, the same reading
+the secrets piece applied when it kept copy feedback inline.
+
+A12 still holds literally, and one structural decision is what keeps it holding.
+Moving the create form into a dialog meant the component owning the create
+mutation had to outlive that dialog, or the token would have died with it. So
+`CreateKeyFlow` owns the mutation, the dialog and the panel together, and only a
+boolean (`tokenPending`, "is there an unacknowledged token") crosses the
+boundary up to `KeysPage`, never the token. The rejected alternative was lifting
+the created key into page state, which would have traded a defined, audited
+lifecycle (`gcTime: 0` plus `reset()` on acknowledgement) for whatever lifecycle
+a page component happens to have.
