@@ -9,8 +9,9 @@ import { keyStatus, useRevokeApiKey, type ApiKey } from "./useApiKeys";
 const STATUS_LABEL = { active: "Active", expired: "Expired", revoked: "Revoked" } as const;
 
 /**
- * Only the 100 and 800 steps of each ramp carry dark mode values in index.css.
- * A tone using any other step would render a light chip on a dark page, which
+ * index.css defines dark mode values at the 100 and 800 steps of each ramp
+ * (used here) plus accent-600/700 and danger-600 (used for hover states). A
+ * tone using any other step would render a light chip on a dark page, which
  * is the defect that hit Alert's inline variant. These four stay inside
  * 100/800, and a fifth tone must too.
  */

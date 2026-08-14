@@ -463,11 +463,17 @@ and does not scroll, so an unbounded panel taller than the viewport put its own
 heading above the top edge with no way to reach it. The API keys create dialog
 is the body that exposed this.
 
-Only the **100 and 800** steps of each colour ramp have dark mode values. Steps
-200 through 700 and 900 are light mode only. A chip or tag using another step
-renders a light element on a dark page, which is the defect that hit `Alert`'s
-inline variant in the secrets piece. `KeyRow`'s tag tones stay inside 100/800
-and say so in a comment.
+`AppShell`'s header now wraps (`flex-wrap`) instead of overflowing at narrow
+viewports, fixing a bug present since the login and shell piece that was
+deliberately deferred until this last piece, since there was no later piece to
+defer it to.
+
+The ramps define dark mode values at the **100 and 800** steps, used for tags
+and chips, plus `accent-600/700` and `danger-600`, used for hover states. Any
+other step renders its light mode colour unchanged in dark mode. A chip or tag
+using a step outside 100/800 renders a light element on a dark page, which is
+the defect that hit `Alert`'s inline variant in the secrets piece. `KeyRow`'s
+tag tones stay inside 100/800 and say so in a comment.
 
 `ToggleSwitch` has a second consumer. A5 planned a client state library around
 reveal toggles, A9 corrected that, and A11 removed the library when no consumer

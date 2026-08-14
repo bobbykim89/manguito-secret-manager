@@ -86,9 +86,9 @@ export function AppShell() {
 
       {/*
         A pure layout passthrough: no width, no color, no padding of its own.
-        Buckets is full width with its own spacing; secrets and API keys pin
-        themselves to the old <main>'s exact box (width, padding, height
-        stretch, and colour) until their own piece reskins them.
+        Every page now supplies its own width, padding and colour; the light
+        mode pin that used to sit here while pages waited for their reskin is
+        gone (ADR 003 A17).
       */}
       <main className="flex w-full flex-1 flex-col">
         <Outlet />

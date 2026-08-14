@@ -97,7 +97,7 @@ export function NewKeyPanel({
         <div className="flex flex-col gap-2 rounded-md border border-accent bg-accent-100 p-3">
           {/* There is no amber token in this theme. accent-100 with an accent
               border reads as a warm warning in both themes and stays inside the
-              100/800 rule, the only ramp pair with dark mode values. */}
+              100/800 pair that carries dark mode values for tags and chips. */}
           <Alert variant="inline" tone="warning">
             Leave without saving your token? It cannot be recovered.
           </Alert>
