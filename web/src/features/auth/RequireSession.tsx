@@ -14,14 +14,14 @@ export function RequireSession() {
   const session = useSession();
 
   if (session.status === "pending") {
-    return <p className="p-8 text-slate-500">Loading</p>;
+    return <p className="p-8 text-text-muted">Loading</p>;
   }
 
   if (session.status === "error") {
     return (
       <main className="mx-auto max-w-2xl p-8">
         <h1 className="text-xl font-semibold">Cannot reach the server</h1>
-        <p className="mt-2 text-slate-600">{session.message}</p>
+        <p className="mt-2 text-text-muted">{session.message}</p>
       </main>
     );
   }
