@@ -155,6 +155,28 @@ describe("SecretsPage", () => {
     expect(await screen.findByText(/secret NEW_KEY added/i)).toBeInTheDocument();
   });
 
+  it("says replaced, not added, for a key that already exists", async () => {
+    server.use(
+      http.get(SECRETS, () => HttpResponse.json({ ok: true, data: [aSecret("DATABASE_URL")] })),
+      http.put(`${SECRETS}/DATABASE_URL`, () =>
+        HttpResponse.json({ ok: true, data: aSecret("DATABASE_URL") }),
+      ),
+    );
+    renderPage();
+    await screen.findByRole("listitem", { name: /DATABASE_URL/ });
+
+    await userEvent.click(screen.getByRole("button", { name: /add secret/i }));
+    const dialog = await screen.findByRole("dialog", { name: /add secret/i });
+
+    await userEvent.type(within(dialog).getByLabelText(/key name/i), "DATABASE_URL");
+    await userEvent.type(within(dialog).getByLabelText(/value/i), "v2");
+    await userEvent.click(within(dialog).getByRole("button", { name: /replace secret/i }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(await screen.findByText(/secret DATABASE_URL replaced/i)).toBeInTheDocument();
+    expect(screen.queryByText(/secret DATABASE_URL added/i)).not.toBeInTheDocument();
+  });
+
   it("keeps the dialog open when the write fails", async () => {
     server.use(
       http.get(SECRETS, () => HttpResponse.json({ ok: true, data: [] })),

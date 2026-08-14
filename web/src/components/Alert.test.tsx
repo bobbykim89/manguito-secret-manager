@@ -31,4 +31,21 @@ describe("Alert", () => {
     rerender(<Alert tone="warning">Careful.</Alert>);
     expect(screen.getByRole("alert").className).toMatch(/text-amber-900/);
   });
+
+  it("carries a dark mode colour on the inline variant, so it stays readable in a dark dialog", () => {
+    // The inline variant has no fill of its own, so in dark mode it sits
+    // directly on the near black dialog background. Without its own dark:
+    // colour the light shades below read at roughly 2.4:1, under WCAG AA's
+    // 4.5:1. Asserted here so a future refactor cannot drop the class
+    // silently: jsdom has no way to catch the contrast regression itself.
+    const { rerender } = render(<Alert variant="inline">Name is taken.</Alert>);
+    expect(screen.getByRole("alert").className).toMatch(/dark:text-red-400/);
+
+    rerender(
+      <Alert variant="inline" tone="warning">
+        Careful.
+      </Alert>,
+    );
+    expect(screen.getByRole("alert").className).toMatch(/dark:text-amber-400/);
+  });
 });

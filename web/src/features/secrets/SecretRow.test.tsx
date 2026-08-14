@@ -285,6 +285,22 @@ describe("SecretRow", () => {
     await waitFor(() => expect(deleted).toBe(true));
   });
 
+  it("announces a successful delete with a toast", async () => {
+    server.use(
+      http.delete(`${SECRETS}/DATABASE_URL`, () =>
+        HttpResponse.json({ ok: true, data: aSecret("DATABASE_URL") }),
+      ),
+    );
+    renderRow();
+    const row = screen.getByRole("listitem", { name: /DATABASE_URL/ });
+
+    await userEvent.click(within(row).getByRole("button", { name: /delete DATABASE_URL/i }));
+    const dialog = await screen.findByRole("dialog", { name: /delete secret/i });
+    await userEvent.click(within(dialog).getByRole("button", { name: /delete secret/i }));
+
+    expect(await screen.findByText(/secret DATABASE_URL deleted/i)).toBeInTheDocument();
+  });
+
   it("shows a failed delete in the dialog it was confirmed from", async () => {
     server.use(
       http.delete(`${SECRETS}/DATABASE_URL`, () =>
