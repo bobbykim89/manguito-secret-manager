@@ -311,7 +311,7 @@ describe("the bucket list learns about a deleted secret", () => {
     );
 
     await screen.findByText(/no secrets yet/i);
-    await userEvent.click(screen.getByRole("link", { name: /^buckets$/i }));
+    await userEvent.click(within(screen.getByRole("banner")).getByRole("link", { name: /^buckets$/i }));
 
     // The direct isInvalidated check above is what actually falsifies removing
     // the invalidation call. This UI walk-through additionally confirms the
