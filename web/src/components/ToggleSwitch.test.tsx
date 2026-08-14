@@ -45,4 +45,17 @@ describe("ToggleSwitch", () => {
 
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  it("anchors the knob to the track's left edge", () => {
+    // jsdom performs no layout, so this can't verify the knob actually stays
+    // inside the track in a real browser (a real-browser check caught the
+    // regression this guards: with no left anchor, the knob's static
+    // position fell back to the track's right side, and translate-x-5 then
+    // pushed it 18px past the track's own right edge). This only guards
+    // against the anchor class being removed again.
+    const { container } = render(<ToggleSwitch checked={false} label="Dark mode" onChange={vi.fn()} />);
+
+    const knob = container.querySelector('[aria-hidden="true"]');
+    expect(knob?.className).toMatch(/\bleft-0\.5\b/);
+  });
 });
