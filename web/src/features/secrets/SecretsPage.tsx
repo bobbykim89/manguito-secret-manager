@@ -17,41 +17,45 @@ export function SecretsPage() {
   const missing = secrets.error?.code === "BUCKET_NOT_FOUND";
 
   return (
-    <section className="flex flex-col gap-6">
-      <h1 className="text-xl font-semibold">{bucket}</h1>
+    <div className="mx-auto w-full max-w-2xl flex-1 bg-white p-8 text-slate-900">
+      {/* This page is not reskinned yet, so it pins itself to light mode.
+          Delete this wrapper when the secrets piece reskins it. */}
+      <section className="flex flex-col gap-6">
+        <h1 className="text-xl font-semibold">{bucket}</h1>
 
-      {missing ? (
-        <Alert>{secrets.error?.message}</Alert>
-      ) : (
-        <>
-          <PutSecretForm bucket={bucket} existingKeys={(secrets.data ?? []).map((s) => s.key_name)} />
+        {missing ? (
+          <Alert>{secrets.error?.message}</Alert>
+        ) : (
+          <>
+            <PutSecretForm bucket={bucket} existingKeys={(secrets.data ?? []).map((s) => s.key_name)} />
 
-          {secrets.isPending && (
-            <p role="status" className="text-sm text-slate-600">
-              Loading secrets
-            </p>
-          )}
+            {secrets.isPending && (
+              <p role="status" className="text-sm text-slate-600">
+                Loading secrets
+              </p>
+            )}
 
-          {secrets.isError && (
-            <Alert>Could not refresh this bucket. {secrets.error.message}</Alert>
-          )}
+            {secrets.isError && (
+              <Alert>Could not refresh this bucket. {secrets.error.message}</Alert>
+            )}
 
-          {/* Rendered on data existing, not on isSuccess: TanStack reports a
-              failed refetch as an error while still holding the previous data,
-              so gating on isSuccess would erase a working list. SP6 was
-              corrected to this shape for this page's benefit. */}
-          {secrets.data &&
-            (secrets.data.length === 0 ? (
-              <p className="text-slate-600">No secrets yet. Add one above.</p>
-            ) : (
-              <ul>
-                {secrets.data.map((secret) => (
-                  <SecretRow key={secret.key_name} bucket={bucket} secret={secret} />
-                ))}
-              </ul>
-            ))}
-        </>
-      )}
-    </section>
+            {/* Rendered on data existing, not on isSuccess: TanStack reports a
+                failed refetch as an error while still holding the previous data,
+                so gating on isSuccess would erase a working list. SP6 was
+                corrected to this shape for this page's benefit. */}
+            {secrets.data &&
+              (secrets.data.length === 0 ? (
+                <p className="text-slate-600">No secrets yet. Add one above.</p>
+              ) : (
+                <ul>
+                  {secrets.data.map((secret) => (
+                    <SecretRow key={secret.key_name} bucket={bucket} secret={secret} />
+                  ))}
+                </ul>
+              ))}
+          </>
+        )}
+      </section>
+    </div>
   );
 }

@@ -136,10 +136,12 @@ describe("BucketsPage", () => {
     const row = await screen.findByRole("listitem", { name: /spare/i });
 
     await userEvent.click(within(row).getByRole("button", { name: /^delete$/i }));
-    expect(within(row).getByText(/delete this bucket/i)).toBeInTheDocument();
-    await userEvent.click(within(row).getByRole("button", { name: /cancel/i }));
+    const dialog = await screen.findByRole("dialog", { name: /delete bucket/i });
+    await userEvent.click(within(dialog).getByRole("button", { name: /cancel/i }));
 
-    expect(within(row).queryByText(/delete this bucket/i)).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: /delete bucket/i })).not.toBeInTheDocument(),
+    );
     expect(deletes).toBe(0);
   });
 
@@ -164,15 +166,18 @@ describe("BucketsPage", () => {
     const row = await screen.findByRole("listitem", { name: /spare/i });
 
     await userEvent.click(within(row).getByRole("button", { name: /^delete$/i }));
-    await userEvent.click(within(row).getByRole("button", { name: /yes/i }));
+    const dialog = await screen.findByRole("dialog", { name: /delete bucket/i });
+    await userEvent.click(within(dialog).getByRole("button", { name: /delete bucket/i }));
 
     await waitFor(() => expect(deleted).toBe("spare"));
     expect(await screen.findByText(/no buckets yet/i)).toBeInTheDocument();
+    expect(await screen.findByText(/bucket spare deleted/i)).toBeInTheDocument();
   });
 
-  it("shows a stale count's rejection on the row it belongs to", async () => {
+  it("shows a stale count's rejection in the dialog it was confirmed from", async () => {
     // secret_count came from the last fetch, so something could have written
-    // through the API since.
+    // through the API since. The dialog stays open so the explanation lands
+    // where the action was taken.
     listReturns(aBucket("racy", 0));
     server.use(
       http.delete(`${LIST}/:name`, () =>
@@ -190,9 +195,11 @@ describe("BucketsPage", () => {
     const row = await screen.findByRole("listitem", { name: /racy/i });
 
     await userEvent.click(within(row).getByRole("button", { name: /^delete$/i }));
-    await userEvent.click(within(row).getByRole("button", { name: /yes/i }));
+    const dialog = await screen.findByRole("dialog", { name: /delete bucket/i });
+    await userEvent.click(within(dialog).getByRole("button", { name: /delete bucket/i }));
 
-    expect(await within(row).findByRole("alert")).toHaveTextContent(/still holds secrets/i);
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(/still holds secrets/i);
+    expect(screen.getByRole("dialog", { name: /delete bucket/i })).toBeInTheDocument();
   });
 
   it("disables a confirmed delete once the corrected count shows it is not empty", async () => {
@@ -220,10 +227,118 @@ describe("BucketsPage", () => {
     const row = await screen.findByRole("listitem", { name: /racy2/i });
 
     await userEvent.click(within(row).getByRole("button", { name: /^delete$/i }));
-    await userEvent.click(within(row).getByRole("button", { name: /yes/i }));
+    const dialog = await screen.findByRole("dialog", { name: /delete bucket/i });
+    await userEvent.click(within(dialog).getByRole("button", { name: /delete bucket/i }));
 
     await waitFor(() =>
-      expect(within(row).getByRole("button", { name: /yes/i })).toBeDisabled(),
+      expect(within(dialog).getByRole("button", { name: /delete bucket/i })).toBeDisabled(),
     );
+  });
+
+  it("opens the create dialog from the header button", async () => {
+    listReturns(aBucket("alpha"));
+    renderWithProviders(
+      <MemoryRouter>
+        <BucketsPage />
+      </MemoryRouter>,
+    );
+    await screen.findByRole("listitem", { name: /alpha/i });
+
+    await userEvent.click(screen.getByRole("button", { name: /new bucket/i }));
+
+    expect(await screen.findByRole("dialog", { name: /new bucket/i })).toBeInTheDocument();
+  });
+
+  it("opens the same dialog from the empty state", async () => {
+    listReturns();
+    renderWithProviders(
+      <MemoryRouter>
+        <BucketsPage />
+      </MemoryRouter>,
+    );
+    await screen.findByText(/no buckets yet/i);
+
+    await userEvent.click(screen.getByRole("button", { name: /create your first bucket/i }));
+
+    expect(await screen.findByRole("dialog", { name: /new bucket/i })).toBeInTheDocument();
+  });
+
+  it("closes the dialog and announces success after a create", async () => {
+    let listCalls = 0;
+    server.use(
+      http.get(LIST, () => {
+        listCalls += 1;
+        return HttpResponse.json({ ok: true, data: listCalls > 1 ? [aBucket("prod")] : [] });
+      }),
+      http.post(LIST, () =>
+        HttpResponse.json({ ok: true, data: aBucket("prod") }, { status: 201 }),
+      ),
+    );
+    renderWithProviders(
+      <MemoryRouter>
+        <BucketsPage />
+      </MemoryRouter>,
+    );
+    await screen.findByText(/no buckets yet/i);
+    await userEvent.click(screen.getByRole("button", { name: /create your first bucket/i }));
+
+    await userEvent.type(await screen.findByRole("textbox", { name: /bucket name/i }), "prod");
+    await userEvent.click(screen.getByRole("button", { name: /create bucket/i }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: /new bucket/i })).not.toBeInTheDocument(),
+    );
+    expect(await screen.findByText(/bucket prod created/i)).toBeInTheDocument();
+  });
+
+  it("keeps the dialog open and puts a rejected name on the field", async () => {
+    listReturns();
+    server.use(
+      http.post(LIST, () =>
+        HttpResponse.json(
+          { ok: false, error: { code: "BUCKET_EXISTS", message: "A bucket named 'prod' already exists." } },
+          { status: 409 },
+        ),
+      ),
+    );
+    renderWithProviders(
+      <MemoryRouter>
+        <BucketsPage />
+      </MemoryRouter>,
+    );
+    await screen.findByText(/no buckets yet/i);
+    await userEvent.click(screen.getByRole("button", { name: /create your first bucket/i }));
+
+    await userEvent.type(await screen.findByRole("textbox", { name: /bucket name/i }), "prod");
+    await userEvent.click(screen.getByRole("button", { name: /create bucket/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/already exists/i);
+    expect(screen.getByRole("dialog", { name: /new bucket/i })).toBeInTheDocument();
+  });
+
+  it("cancels the create dialog without creating anything", async () => {
+    let posts = 0;
+    listReturns();
+    server.use(
+      http.post(LIST, () => {
+        posts += 1;
+        return HttpResponse.json({ ok: true, data: aBucket("prod") }, { status: 201 });
+      }),
+    );
+    renderWithProviders(
+      <MemoryRouter>
+        <BucketsPage />
+      </MemoryRouter>,
+    );
+    await screen.findByText(/no buckets yet/i);
+    await userEvent.click(screen.getByRole("button", { name: /create your first bucket/i }));
+    await screen.findByRole("dialog", { name: /new bucket/i });
+
+    await userEvent.click(screen.getByRole("button", { name: /cancel/i }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: /new bucket/i })).not.toBeInTheDocument(),
+    );
+    expect(posts).toBe(0);
   });
 });

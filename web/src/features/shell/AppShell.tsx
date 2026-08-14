@@ -75,13 +75,12 @@ export function AppShell() {
       )}
 
       {/*
-        Pinned to explicit light values. Buckets, secrets and API keys still
-        use hardcoded light mode classes, and two of them render a secret on
-        a bg-slate-100 block with no text colour, which would be invisible
-        against a dark inherited colour. Each of those pieces deletes this
-        pin as it is reskinned.
+        A pure layout passthrough: no width, no color, no padding of its own.
+        Buckets is full width with its own spacing; secrets and API keys pin
+        themselves to the old <main>'s exact box (width, padding, height
+        stretch, and colour) until their own piece reskins them.
       */}
-      <main className="mx-auto w-full max-w-2xl flex-1 bg-white p-8 text-slate-900">
+      <main className="flex w-full flex-1 flex-col">
         <Outlet />
       </main>
 
