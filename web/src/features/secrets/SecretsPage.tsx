@@ -89,7 +89,10 @@ export function SecretsPage() {
         </>
       )}
 
-      <Modal open={adding} onClose={() => setAdding(false)} title="Add secret">
+      {/* Guarded on !missing too, matching the header button above: a
+          background refetch can flip missing to true while this dialog is
+          already open, and a write form has no bucket left to write into. */}
+      <Modal open={adding && !missing} onClose={() => setAdding(false)} title="Add secret">
         <PutSecretForm
           bucket={bucket}
           existingKeys={(secrets.data ?? []).map((s) => s.key_name)}

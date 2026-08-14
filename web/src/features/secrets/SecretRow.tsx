@@ -181,7 +181,11 @@ export function SecretRow({ bucket, secret }: { bucket: string; secret: Secret }
           Copied
         </p>
       )}
-      {copyState === "fetch-failed" && (
+      {/* Suppressed while the reveal-failure alert above is already showing:
+          both test the same underlying value fetch, and a reveal left in its
+          own error state plus a failed copy on top of it would stack two
+          copies of the identical sentence. */}
+      {copyState === "fetch-failed" && !(revealed && value.isError) && (
         <Alert variant="inline">Could not reveal this secret.</Alert>
       )}
       {copyState === "clipboard-failed" && (
