@@ -17,6 +17,7 @@ theme tokens.
 - `web/src/features/api-keys/CreateKeyForm.tsx`, renamed to `CreateKeyFlow.tsx`
 - `web/src/features/api-keys/NewKeyPanel.tsx`
 - `web/src/features/shell/AppShell.tsx`, one narrow viewport fix, its own commit
+- `web/src/components/Modal.tsx`, one overflow fix, its own commit
 - `web/src/components/ConfirmPrompt.tsx` and its test, both deleted
 
 `useApiKeys.ts` and `apiKeyForm.ts` need no changes. The data layer,
@@ -312,6 +313,34 @@ secret can be revealed again tomorrow, this cannot. `useBlocker(true)` and the
 by a flag, so they cannot drift out of step with what is on screen. The
 `aria-label={`Token for ${name}`}` stays.
 
+## The Modal overflow fix
+
+Check 3 below anticipated that a tall dialog might overflow the viewport.
+Reading `Modal.tsx` while planning confirmed it statically, so it is fixed
+proactively rather than discovered in a browser.
+
+`Modal`'s panel is `w-full max-w-md rounded-lg border border-border bg-surface
+p-6 shadow-lg` with no maximum height and no overflow handling, sitting inside a
+`fixed inset-0 flex items-center justify-center` backdrop. A body taller than
+the viewport therefore overflows in both directions, and because the backdrop is
+`fixed` and does not scroll, the part above the top edge is unreachable: there
+is no way to get to the dialog's own heading or its first fields.
+
+This piece's create dialog is exactly that body. Name, one checkbox per bucket,
+a capabilities helper, two toggle rows each with a description, an expiry select
+and two action buttons runs past the viewport on a laptop as soon as an account
+has a handful of buckets.
+
+The fix belongs in `Modal` rather than in this one caller, because the defect is
+general: any tall dialog in any feature hits it. The panel gains a maximum
+height and `overflow-y-auto`, and the backdrop gains padding so the panel never
+touches the viewport edge. It ships as its own commit, like the `AppShell` fix,
+so review can see it apart from the api-keys work.
+
+This is the second shared component this piece touches, and both carry the same
+risk: a change that can break pages this piece does not own. Check 3 and check 4
+both include regression passes for that reason.
+
 ## The AppShell narrow viewport fix
 
 The header overflows horizontally at roughly 380px: `scrollWidth` 488 against
@@ -354,8 +383,13 @@ regression.
 - `KeysPage.test.tsx`: gains the migrated empty buckets test and tests for
   opening the dialog from the header and from the empty state. The two
   `/no api keys yet/i` assertions are untouched, which is why the wording is
-  fixed. The pending buckets test at lines 74-95 is untouched and is the guard
-  on the three state gate described under "Empty states".
+  fixed. The pending buckets test's guard, its two assertions at lines 91 and
+  92, is untouched and enforces the three state gate described under "Empty
+  states". Its final assertion at line 96 does change: it waits for a button
+  matching `/create key/i` once buckets resolve, and the affordance that
+  appears on the page is now `+ New key`, since `Create key` is the dialog's
+  submit button. That regex becomes `/new key/i`, which is the same assertion
+  about the same behaviour.
 - `ConfirmPrompt.test.tsx` is deleted with its component.
 - `NewKeyPanel.test.tsx` is expected to be unaffected: it renders the panel
   directly and asserts behaviour, not classes. The plan verifies this rather
@@ -416,9 +450,11 @@ Eight checks:
    on the credential screen.
 3. The create dialog at 1280px: both `ToggleSwitch`es render with the knob
    inside the track, and a dialog carrying several buckets plus capabilities
-   plus expiry does not overflow the viewport. `Modal` centres its content, so
-   a tall body is a real risk, and this is `ToggleSwitch`'s first use outside
-   the header.
+   plus expiry stays inside the viewport with its heading and first fields
+   reachable. This is `ToggleSwitch`'s first use outside the header, and the
+   verification for the `Modal` overflow fix above. Includes a regression pass
+   on the buckets and secrets dialogs, which are short and must not have gained
+   a scrollbar or lost their centring.
 4. `AppShell` at 380px: no horizontal page scroll and `Sign out` reachable,
    plus a 1280px regression pass across buckets, secrets and keys.
 5. A key card at 380px: tags wrap and Revoke stays inside the card.
