@@ -87,6 +87,6 @@ Applies to code comments, commit messages, docs, and any prose in this repo.
 
 ## Out of scope for v1
 
-Secret versioning and history, zero-knowledge buckets, command palette, dark mode. If a task drifts toward these, flag it rather than building it.
+Secret versioning and history, zero-knowledge buckets, command palette. If a task drifts toward these, flag it rather than building it.
 
 Bulk fetch is in scope, but gated: `?reveal=true` is reachable only by an API key carrying an explicit reveal scope, never by a web session, and is rejected rather than ignored without that scope. See ADR 002 A4.
