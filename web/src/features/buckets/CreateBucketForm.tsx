@@ -6,7 +6,20 @@ import { Alert } from "../../components/Alert";
 import { bucketNameSchema, type BucketNameValues } from "./bucketName";
 import { useCreateBucket } from "./useBuckets";
 
-export function CreateBucketForm() {
+/**
+ * The create form, rendered as a dialog body by BucketsPage.
+ *
+ * Both callbacks are optional so the form stays renderable on its own, which
+ * is how its tests exercise validation without a dialog around it. Cancel is
+ * only drawn when there is something to cancel back to.
+ */
+export function CreateBucketForm({
+  onCreated,
+  onCancel,
+}: {
+  onCreated?: (name: string) => void;
+  onCancel?: () => void;
+}) {
   const create = useCreateBucket();
   const {
     formState: { errors },
@@ -20,7 +33,10 @@ export function CreateBucketForm() {
     create.mutate(values.name, {
       // Reset only on success. A failed submit keeps what was typed, because
       // retyping a name the server just explained is pure friction.
-      onSuccess: () => reset(),
+      onSuccess: () => {
+        reset();
+        onCreated?.(values.name);
+      },
       onError: (error) => {
         if (error.code === "BUCKET_EXISTS") {
           // Validation performed by the only party that can perform it, so it
@@ -34,29 +50,42 @@ export function CreateBucketForm() {
   });
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-2">
-      <div className="flex gap-2">
-        <label htmlFor="bucket-name" className="sr-only">
+    <form onSubmit={onSubmit} className="mt-4 flex flex-col gap-4">
+      <div className="flex flex-col gap-1">
+        <label htmlFor="bucket-name" className="text-xs">
           Bucket name
         </label>
         <input
           id="bucket-name"
           {...register("name")}
-          placeholder="new-bucket"
+          placeholder="my_project"
           disabled={create.isPending}
           aria-invalid={errors.name ? true : undefined}
-          className="flex-1 rounded border px-3 py-2"
+          className="rounded-sm border border-border bg-bg px-3 py-2"
         />
+      </div>
+
+      {errors.name && <Alert variant="inline">{errors.name.message}</Alert>}
+      {errors.root && <Alert variant="inline">{errors.root.message}</Alert>}
+
+      <div className="flex justify-end gap-2">
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-md border border-border px-4 py-2 font-sans text-sm"
+          >
+            Cancel
+          </button>
+        )}
         <button
           type="submit"
           disabled={create.isPending}
-          className="rounded bg-slate-900 px-4 py-2 text-white"
+          className="rounded-md bg-accent px-4 py-2 font-sans text-sm font-semibold text-bg"
         >
-          Create
+          Create bucket
         </button>
       </div>
-      {errors.name && <Alert variant="inline">{errors.name.message}</Alert>}
-      {errors.root && <Alert variant="inline">{errors.root.message}</Alert>}
     </form>
   );
 }
