@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useEffect } from "react";
 import { Controller, useForm } from "react-hook-form";
 
 import { Alert } from "../../components/Alert";
@@ -42,6 +43,7 @@ export function CreateKeyFlow({
   const create = useCreateApiKey();
   const {
     control,
+    clearErrors,
     formState: { errors },
     handleSubmit,
     register,
@@ -51,6 +53,18 @@ export function CreateKeyFlow({
     resolver: zodResolver(apiKeyFormSchema),
     defaultValues: { name: "", buckets: [], canWrite: false, canReveal: false, expiry: "90d" },
   });
+
+  useEffect(() => {
+    // CreateKeyFlow outlives its dialog (the token lives in this mutation), so
+    // React Hook Form's state is never remounted away the way the buckets and
+    // secrets forms are when their dialogs close. Clear the last server
+    // refusal here, or the next open greets the user with a stale error from a
+    // different attempt. Typed field values are deliberately left alone: a
+    // failed submit already keeps what was typed (see onSubmit below), and
+    // carrying that across a cancel-then-reopen saves retyping without
+    // resurrecting the old error.
+    if (open) clearErrors("root");
+  }, [open, clearErrors]);
 
   const onSubmit = handleSubmit((values) => {
     create.mutate(

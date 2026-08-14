@@ -1,6 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
+import { useState } from "react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { describe, expect, it } from "vitest";
 
@@ -41,6 +42,37 @@ function renderFlow(buckets = [aBucket("prod"), aBucket("dev")]) {
     ],
     { initialEntries: ["/keys"] },
   );
+  return renderWithProviders(<RouterProvider router={router} />);
+}
+
+/**
+ * Same wiring as renderFlow, but `open` is real state instead of a fixed
+ * `true`, with a "Reopen" trigger standing in for the header button that
+ * would flip it back on in KeysPage. Only tests that need to close and
+ * reopen the dialog reach for this; everything else uses renderFlow.
+ */
+function renderFlowWithToggle(buckets = [aBucket("prod"), aBucket("dev")]) {
+  function Harness() {
+    const [open, setOpen] = useState(true);
+    return (
+      <>
+        <button type="button" onClick={() => setOpen(true)}>
+          Reopen
+        </button>
+        <CreateKeyFlow
+          buckets={buckets}
+          open={open}
+          onClose={() => setOpen(false)}
+          onCreated={() => {}}
+          onAcknowledged={() => {}}
+        />
+      </>
+    );
+  }
+
+  const router = createMemoryRouter([{ path: "/keys", element: <Harness /> }], {
+    initialEntries: ["/keys"],
+  });
   return renderWithProviders(<RouterProvider router={router} />);
 }
 
@@ -244,5 +276,86 @@ describe("CreateKeyFlow", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/no bucket named/i);
     expect(screen.getByLabelText(/name/i)).toHaveValue("keep-me");
+  });
+
+  it("clears a stale server error when the dialog is closed and reopened", async () => {
+    server.use(
+      http.post(KEYS, () =>
+        HttpResponse.json(
+          { ok: false, error: { code: "BUCKET_NOT_FOUND", message: "No bucket named 'prod'." } },
+          { status: 404 },
+        ),
+      ),
+    );
+    renderFlowWithToggle();
+
+    await userEvent.type(screen.getByLabelText(/name/i), "keep-me");
+    await userEvent.click(screen.getByRole("checkbox", { name: "prod" }));
+    await userEvent.click(screen.getByRole("button", { name: /create key/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/no bucket named/i);
+
+    await userEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /^reopen$/i }));
+    expect(await screen.findByRole("dialog", { name: /new api key/i })).toBeInTheDocument();
+    // The stale refusal from the previous attempt must not greet this open.
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("writes nothing when cancelled", async () => {
+    let calls = 0;
+    server.use(
+      http.post(KEYS, () => {
+        calls += 1;
+        return HttpResponse.json({ ok: true, data: {} }, { status: 201 });
+      }),
+    );
+    renderFlow();
+
+    await userEvent.type(screen.getByLabelText(/name/i), "never-sent");
+    await userEvent.click(screen.getByRole("checkbox", { name: "prod" }));
+    await userEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
+
+    expect(calls).toBe(0);
+  });
+
+  it("sends can_reveal without can_write when only Bulk reveal is toggled", async () => {
+    let body: Record<string, unknown> | undefined;
+    server.use(
+      http.post(KEYS, async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(
+          {
+            ok: true,
+            data: {
+              id: "1",
+              lookup_id: "a3f9c2e1",
+              name: "ci-deploy",
+              buckets: ["prod"],
+              can_write: false,
+              can_reveal: true,
+              expires_at: null,
+              revoked_at: null,
+              last_used_at: null,
+              created_at: "2026-08-11T00:00:00Z",
+              token: "msm_a3f9c2e1_secret",
+            },
+          },
+          { status: 201 },
+        );
+      }),
+    );
+    renderFlow();
+
+    await userEvent.type(screen.getByLabelText(/name/i), "ci-deploy");
+    await userEvent.click(screen.getByRole("checkbox", { name: "prod" }));
+    await userEvent.click(screen.getByRole("switch", { name: /bulk reveal/i }));
+    await userEvent.click(screen.getByRole("button", { name: /create key/i }));
+
+    await waitFor(() => expect(body).toBeDefined());
+    expect(body?.can_reveal).toBe(true);
+    expect(body?.can_write).toBe(false);
   });
 });
