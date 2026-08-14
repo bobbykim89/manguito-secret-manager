@@ -136,10 +136,12 @@ describe("BucketsPage", () => {
     const row = await screen.findByRole("listitem", { name: /spare/i });
 
     await userEvent.click(within(row).getByRole("button", { name: /^delete$/i }));
-    expect(within(row).getByText(/delete this bucket/i)).toBeInTheDocument();
-    await userEvent.click(within(row).getByRole("button", { name: /cancel/i }));
+    const dialog = await screen.findByRole("dialog", { name: /delete bucket/i });
+    await userEvent.click(within(dialog).getByRole("button", { name: /cancel/i }));
 
-    expect(within(row).queryByText(/delete this bucket/i)).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: /delete bucket/i })).not.toBeInTheDocument(),
+    );
     expect(deletes).toBe(0);
   });
 
@@ -164,15 +166,18 @@ describe("BucketsPage", () => {
     const row = await screen.findByRole("listitem", { name: /spare/i });
 
     await userEvent.click(within(row).getByRole("button", { name: /^delete$/i }));
-    await userEvent.click(within(row).getByRole("button", { name: /yes/i }));
+    const dialog = await screen.findByRole("dialog", { name: /delete bucket/i });
+    await userEvent.click(within(dialog).getByRole("button", { name: /delete bucket/i }));
 
     await waitFor(() => expect(deleted).toBe("spare"));
     expect(await screen.findByText(/no buckets yet/i)).toBeInTheDocument();
+    expect(await screen.findByText(/bucket spare deleted/i)).toBeInTheDocument();
   });
 
-  it("shows a stale count's rejection on the row it belongs to", async () => {
+  it("shows a stale count's rejection in the dialog it was confirmed from", async () => {
     // secret_count came from the last fetch, so something could have written
-    // through the API since.
+    // through the API since. The dialog stays open so the explanation lands
+    // where the action was taken.
     listReturns(aBucket("racy", 0));
     server.use(
       http.delete(`${LIST}/:name`, () =>
@@ -190,9 +195,11 @@ describe("BucketsPage", () => {
     const row = await screen.findByRole("listitem", { name: /racy/i });
 
     await userEvent.click(within(row).getByRole("button", { name: /^delete$/i }));
-    await userEvent.click(within(row).getByRole("button", { name: /yes/i }));
+    const dialog = await screen.findByRole("dialog", { name: /delete bucket/i });
+    await userEvent.click(within(dialog).getByRole("button", { name: /delete bucket/i }));
 
-    expect(await within(row).findByRole("alert")).toHaveTextContent(/still holds secrets/i);
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(/still holds secrets/i);
+    expect(screen.getByRole("dialog", { name: /delete bucket/i })).toBeInTheDocument();
   });
 
   it("disables a confirmed delete once the corrected count shows it is not empty", async () => {
@@ -220,10 +227,11 @@ describe("BucketsPage", () => {
     const row = await screen.findByRole("listitem", { name: /racy2/i });
 
     await userEvent.click(within(row).getByRole("button", { name: /^delete$/i }));
-    await userEvent.click(within(row).getByRole("button", { name: /yes/i }));
+    const dialog = await screen.findByRole("dialog", { name: /delete bucket/i });
+    await userEvent.click(within(dialog).getByRole("button", { name: /delete bucket/i }));
 
     await waitFor(() =>
-      expect(within(row).getByRole("button", { name: /yes/i })).toBeDisabled(),
+      expect(within(dialog).getByRole("button", { name: /delete bucket/i })).toBeDisabled(),
     );
   });
 
