@@ -60,6 +60,7 @@ afterEach(() => {
   server.resetHandlers();
   window.localStorage.clear();
   document.documentElement.removeAttribute("data-theme");
+  document.getElementById("modal-root")?.remove();
 });
 
 afterAll(() => {

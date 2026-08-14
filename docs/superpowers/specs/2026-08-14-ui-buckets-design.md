@@ -46,7 +46,7 @@ pass is scoped work with named checks, listed under Verification below.
 - Move bucket creation into `Modal`; move delete confirmation into `Modal`.
 - First real `useToast()` call sites.
 - Relocate the light mode pin out of `AppShell`'s `<main>` and into the
-  three pages that still need it.
+  two pages that still need it.
 - A named browser verification pass, with screenshots in the pull request.
 
 ### Explicitly out of scope

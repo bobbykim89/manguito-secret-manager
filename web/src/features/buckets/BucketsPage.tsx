@@ -19,7 +19,7 @@ export function BucketsPage() {
   }
 
   return (
-    <section className="mx-auto flex w-full max-w-[960px] flex-col gap-6">
+    <section className="mx-auto flex w-full max-w-[960px] flex-col gap-6 px-6 py-8">
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold">Buckets</h1>
         <button

@@ -17,7 +17,7 @@ export function SecretsPage() {
   const missing = secrets.error?.code === "BUCKET_NOT_FOUND";
 
   return (
-    <div className="mx-auto w-full max-w-2xl bg-white text-slate-900">
+    <div className="mx-auto w-full max-w-2xl flex-1 bg-white p-8 text-slate-900">
       {/* This page is not reskinned yet, so it pins itself to light mode.
           Delete this wrapper when the secrets piece reskins it. */}
       <section className="flex flex-col gap-6">

@@ -71,7 +71,10 @@ export function BucketRow({ bucket }: { bucket: Bucket }) {
               and stays independently clickable. */}
           <button
             type="button"
-            onClick={() => setConfirming(true)}
+            onClick={() => {
+              remove.reset();
+              setConfirming(true);
+            }}
             disabled={holdsSecrets}
             className="relative rounded-md px-2 py-1 text-accent disabled:opacity-50"
           >

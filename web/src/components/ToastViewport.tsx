@@ -14,7 +14,7 @@ export function ToastViewport() {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 flex flex-col gap-2">
+    <div className="fixed bottom-4 right-4 z-[60] flex flex-col gap-2">
       {context.toasts.map((toast) => (
         <div key={toast.id} role="status" className="rounded border border-border bg-surface px-4 py-2 text-sm shadow">
           {toast.message}

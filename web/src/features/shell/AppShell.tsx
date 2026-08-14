@@ -75,11 +75,12 @@ export function AppShell() {
       )}
 
       {/*
-        No width and no colour: each page sets its own. Secrets and API keys
-        still use hardcoded light mode classes and carry their own light pin
-        until their own piece reskins them.
+        A pure layout passthrough: no width, no color, no padding of its own.
+        Buckets is full width with its own spacing; secrets and API keys pin
+        themselves to the old <main>'s exact box (width, padding, height
+        stretch, and colour) until their own piece reskins them.
       */}
-      <main className="w-full flex-1 px-6 py-8">
+      <main className="flex w-full flex-1 flex-col">
         <Outlet />
       </main>
 

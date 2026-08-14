@@ -9,7 +9,7 @@ export function KeysPage() {
   const keys = useApiKeys();
 
   return (
-    <div className="mx-auto w-full max-w-2xl bg-white text-slate-900">
+    <div className="mx-auto w-full max-w-2xl flex-1 bg-white p-8 text-slate-900">
       {/* This page is not reskinned yet, so it pins itself to light mode.
           Delete this wrapper when the API keys piece reskins it. */}
       <section className="flex flex-col gap-6">
