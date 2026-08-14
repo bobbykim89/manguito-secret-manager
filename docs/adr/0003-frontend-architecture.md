@@ -421,3 +421,22 @@ A14's toast exception is read as permitting success toasts, not mandating them
 everywhere. Add, replace and delete raise one; copy keeps its adjacent inline
 "Copied" line, because copy is the highest-frequency action on the page and a
 toast per copy is noise.
+
+One more reconciliation belongs here. The body's security-relevant
+requirements say an unrevealed secret's plaintext "never enters the DOM or the
+JS heap," and copy-without-reveal contradicts that clause as written: it
+fetches a value the user never revealed and writes it into the TanStack Query
+cache, under `["secret-value", bucket, keyName]`, where it sits for up to five
+minutes with `revealed` still false. That cache entry is the point of the
+feature, not a leak. It is gated behind an explicit click, it is never
+rendered, and `SecretRow`'s `revealed` guard above is exactly what keeps it
+from surfacing as an unintended reveal. The body's "or the JS heap" clause is
+narrowed by this amendment to mean no plaintext enters the heap for a value
+the user has not explicitly asked for, whether that ask is a reveal or a
+copy. Read the same way, CLAUDE.md's invariant 7, "the frontend must not
+fetch a value until the user clicks reveal," is stating the same narrower
+rule in its own words rather than a literal restriction to the Reveal button.
+Its operative content is the absence of a render-triggered or automatic
+fetch; Copy is also an explicit user action, and was always meant to satisfy
+it. CLAUDE.md's own wording is worth tightening to say so directly, but that
+file is out of scope for this branch and is not touched here.

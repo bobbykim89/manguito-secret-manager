@@ -54,7 +54,7 @@ export function useSecrets(bucket: string) {
  * unmounts the observer and the plaintext leaves memory without anyone writing
  * code to do it.
  */
-export const secretValueQueryOptions = (bucket: string, keyName: string) => ({
+const secretValueQueryOptions = (bucket: string, keyName: string) => ({
   queryKey: secretValueQueryKey(bucket, keyName),
   queryFn: () => client.get<SecretValue>(secretPath(bucket, keyName)),
   staleTime: Infinity,
@@ -63,10 +63,14 @@ export const secretValueQueryOptions = (bucket: string, keyName: string) => ({
 /**
  * One secret's plaintext, fetched only once the user asks for it.
  *
- * `enabled` is where invariant 7 lives in code: nothing about rendering the
- * list can cause a value fetch, because only a click flips this flag.
+ * `enabled` gates this hook's own fetch: nothing about rendering the list can
+ * cause it to run, because only a click flips this flag. It is not, however,
+ * the whole of invariant 7. `useFetchSecretValue` below is a second fetch
+ * path, gated by nothing declarative at all, only by the fact that its only
+ * caller is an onClick handler. Invariant 7 lives in both hooks being called
+ * from a click and nowhere else, not in `enabled` alone.
  *
- * It does not, however, stop this hook from returning a cache entry the copy
+ * `enabled` also does not stop this hook from returning a cache entry the copy
  * path put there. SecretRow's `revealed` guard is what handles that; see the
  * comment on its `plaintext`.
  */
