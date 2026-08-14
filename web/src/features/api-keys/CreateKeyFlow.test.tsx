@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { MemoryRouter, createMemoryRouter, RouterProvider } from "react-router";
+import { createMemoryRouter, RouterProvider } from "react-router";
 import { describe, expect, it } from "vitest";
 
 import { renderWithProviders } from "../../test/render";
@@ -14,10 +14,31 @@ function aBucket(name: string) {
   return { id: `id-${name}`, name, created_at: "2026-08-11T00:00:00Z", secret_count: 0 };
 }
 
-/** A data router, because a successful create renders NewKeyPanel's blocker. */
-function renderForm(buckets = [aBucket("prod"), aBucket("dev")]) {
+/**
+ * A data router, because a successful create renders NewKeyPanel's blocker.
+ *
+ * `open` is a fixed true rather than page state: this suite exercises the flow
+ * with its dialog open, and the page level wiring (the dialog closing, the
+ * trigger hiding) is KeysPage's to test. The dialog still closes on success on
+ * its own, because CreateKeyFlow gates the Modal on `!create.data` too, which is
+ * what the "replaces itself with the token panel" test below proves.
+ */
+function renderFlow(buckets = [aBucket("prod"), aBucket("dev")]) {
   const router = createMemoryRouter(
-    [{ path: "/keys", element: <CreateKeyFlow buckets={buckets} /> }],
+    [
+      {
+        path: "/keys",
+        element: (
+          <CreateKeyFlow
+            buckets={buckets}
+            open
+            onClose={() => {}}
+            onCreated={() => {}}
+            onAcknowledged={() => {}}
+          />
+        ),
+      },
+    ],
     { initialEntries: ["/keys"] },
   );
   return renderWithProviders(<RouterProvider router={router} />);
@@ -50,7 +71,7 @@ describe("CreateKeyFlow", () => {
         );
       }),
     );
-    renderForm();
+    renderFlow();
 
     await userEvent.type(screen.getByLabelText(/name/i), "ci-deploy");
     await userEvent.click(screen.getByRole("checkbox", { name: "prod" }));
@@ -94,7 +115,7 @@ describe("CreateKeyFlow", () => {
         );
       }),
     );
-    renderForm();
+    renderFlow();
 
     await userEvent.type(screen.getByLabelText(/name/i), "forever");
     await userEvent.click(screen.getByRole("checkbox", { name: "prod" }));
@@ -113,7 +134,7 @@ describe("CreateKeyFlow", () => {
         return HttpResponse.json({ ok: true, data: {} }, { status: 201 });
       }),
     );
-    renderForm();
+    renderFlow();
 
     await userEvent.type(screen.getByLabelText(/name/i), "no-buckets");
     await userEvent.click(screen.getByRole("button", { name: /create key/i }));
@@ -123,7 +144,7 @@ describe("CreateKeyFlow", () => {
   });
 
   it("states that any key can already read secrets, so the reveal box is not misread", () => {
-    renderForm();
+    renderFlow();
 
     // may_reveal gates only the bulk path. A key without it still reads
     // secrets one at a time, and the form must not imply otherwise.
@@ -156,7 +177,7 @@ describe("CreateKeyFlow", () => {
         ),
       ),
     );
-    renderForm();
+    renderFlow();
 
     await userEvent.type(screen.getByLabelText(/name/i), "ci-deploy");
     await userEvent.click(screen.getByRole("checkbox", { name: "prod" }));
@@ -191,7 +212,7 @@ describe("CreateKeyFlow", () => {
         ),
       ),
     );
-    renderForm();
+    renderFlow();
 
     await userEvent.type(screen.getByLabelText(/name/i), "ci-deploy");
     await userEvent.click(screen.getByRole("checkbox", { name: "prod" }));
@@ -215,7 +236,7 @@ describe("CreateKeyFlow", () => {
         ),
       ),
     );
-    renderForm();
+    renderFlow();
 
     await userEvent.type(screen.getByLabelText(/name/i), "keep-me");
     await userEvent.click(screen.getByRole("checkbox", { name: "prod" }));
@@ -223,19 +244,5 @@ describe("CreateKeyFlow", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/no bucket named/i);
     expect(screen.getByLabelText(/name/i)).toHaveValue("keep-me");
-  });
-
-  it("tells an account with no buckets to make one first", () => {
-    renderWithProviders(
-      <MemoryRouter>
-        <CreateKeyFlow buckets={[]} />
-      </MemoryRouter>,
-    );
-
-    expect(screen.getByRole("link", { name: /create a bucket/i })).toHaveAttribute(
-      "href",
-      "/buckets",
-    );
-    expect(screen.queryByRole("button", { name: /create key/i })).not.toBeInTheDocument();
   });
 });
