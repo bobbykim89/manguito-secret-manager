@@ -128,12 +128,10 @@ describe("SecretRow", () => {
     const row = screen.getByRole("listitem", { name: /DATABASE_URL/ });
 
     await userEvent.click(within(row).getByRole("button", { name: /delete DATABASE_URL/i }));
-    expect(within(row).getByText(/delete this secret/i)).toBeInTheDocument();
-    await userEvent.click(
-      within(row).getByRole("button", { name: /cancel deleting DATABASE_URL/i }),
-    );
+    const dialog = await screen.findByRole("dialog", { name: /delete secret/i });
+    await userEvent.click(within(dialog).getByRole("button", { name: /^cancel$/i }));
 
-    expect(within(row).queryByText(/delete this secret/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(deletes).toBe(0);
   });
 
@@ -149,14 +147,13 @@ describe("SecretRow", () => {
     const row = screen.getByRole("listitem", { name: /DATABASE_URL/ });
 
     await userEvent.click(within(row).getByRole("button", { name: /delete DATABASE_URL/i }));
-    await userEvent.click(
-      within(row).getByRole("button", { name: /confirm deleting DATABASE_URL/i }),
-    );
+    const dialog = await screen.findByRole("dialog", { name: /delete secret/i });
+    await userEvent.click(within(dialog).getByRole("button", { name: /delete secret/i }));
 
     await waitFor(() => expect(deleted).toBe(true));
   });
 
-  it("shows a failed delete on the row it belongs to", async () => {
+  it("shows a failed delete in the dialog it was confirmed from", async () => {
     server.use(
       http.delete(`${SECRETS}/DATABASE_URL`, () =>
         HttpResponse.json(
@@ -169,10 +166,11 @@ describe("SecretRow", () => {
     const row = screen.getByRole("listitem", { name: /DATABASE_URL/ });
 
     await userEvent.click(within(row).getByRole("button", { name: /delete DATABASE_URL/i }));
-    await userEvent.click(
-      within(row).getByRole("button", { name: /confirm deleting DATABASE_URL/i }),
-    );
+    const dialog = await screen.findByRole("dialog", { name: /delete secret/i });
+    await userEvent.click(within(dialog).getByRole("button", { name: /delete secret/i }));
 
-    expect(await within(row).findByRole("alert")).toHaveTextContent(/already gone/i);
+    // The dialog stays open so the message is next to the button that failed.
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(/already gone/i);
+    expect(screen.getByRole("dialog", { name: /delete secret/i })).toBeInTheDocument();
   });
 });

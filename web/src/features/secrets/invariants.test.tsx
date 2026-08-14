@@ -176,7 +176,8 @@ describe("ADR 003 A4: the web session never asks for bulk reveal", () => {
     await userEvent.type(screen.getByLabelText(/value/i), "v");
     await userEvent.click(screen.getByRole("button", { name: /add secret/i }));
     await userEvent.click(within(row).getByRole("button", { name: /delete A/i }));
-    await userEvent.click(within(row).getByRole("button", { name: /confirm deleting A/i }));
+    const deleteDialog = await screen.findByRole("dialog", { name: /delete secret/i });
+    await userEvent.click(within(deleteDialog).getByRole("button", { name: /delete secret/i }));
 
     await waitFor(() => expect(requested.length).toBeGreaterThan(3));
     // Asserted across every request rather than one URL, so the guarantee
@@ -300,7 +301,8 @@ describe("the bucket list learns about a deleted secret", () => {
     ]);
 
     await userEvent.click(within(row).getByRole("button", { name: /delete A/i }));
-    await userEvent.click(within(row).getByRole("button", { name: /confirm deleting A/i }));
+    const secretDialog = await screen.findByRole("dialog", { name: /delete secret/i });
+    await userEvent.click(within(secretDialog).getByRole("button", { name: /delete secret/i }));
 
     // The direct falsification: BucketsPage is not mounted at this point, so a
     // UI walk-through alone cannot tell "invalidated" apart from "always
