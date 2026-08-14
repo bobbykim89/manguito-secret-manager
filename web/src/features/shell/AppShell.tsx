@@ -75,13 +75,11 @@ export function AppShell() {
       )}
 
       {/*
-        Pinned to explicit light values. Buckets, secrets and API keys still
-        use hardcoded light mode classes, and two of them render a secret on
-        a bg-slate-100 block with no text colour, which would be invisible
-        against a dark inherited colour. Each of those pieces deletes this
-        pin as it is reskinned.
+        No width and no colour: each page sets its own. Secrets and API keys
+        still use hardcoded light mode classes and carry their own light pin
+        until their own piece reskins them.
       */}
-      <main className="mx-auto w-full max-w-2xl flex-1 bg-white p-8 text-slate-900">
+      <main className="w-full flex-1 px-6 py-8">
         <Outlet />
       </main>
 
