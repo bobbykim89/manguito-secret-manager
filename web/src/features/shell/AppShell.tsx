@@ -26,11 +26,17 @@ export function AppShell() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-bg px-6 py-4">
+      <header className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border bg-bg px-6 py-4">
         <div className="flex items-center gap-6">
           <Link to="/buckets" viewTransition className="flex items-center gap-2.5">
             <img src="/logo.webp" alt="" className="h-7 w-7 rounded-lg" />
-            <span className="font-sans font-semibold">Manguito Secret Manager</span>
+            {/* Hidden rather than removed below sm: the logo still carries the
+                brand at that width, and the wordmark is the single widest item
+                in the header. It stays in the DOM, so nothing that queries for
+                it breaks. */}
+            <span className="hidden font-sans font-semibold sm:inline">
+              Manguito Secret Manager
+            </span>
           </Link>
           {/* NavLink rather than Link: it supplies isActive and sets
               aria-current, so the current destination needs no state and no
@@ -55,7 +61,11 @@ export function AppShell() {
             label="Dark mode"
           />
           {session.status === "authenticated" && (
-            <span className="text-[13px] opacity-70">{session.user.email}</span>
+            /* min-w-0 with truncate so a long address shrinks instead of
+                shoving Sign out off the edge. Truncated rather than hidden:
+                which account you are signed in as is worth knowing in a secret
+                manager. */
+            <span className="min-w-0 truncate text-[13px] opacity-70">{session.user.email}</span>
           )}
           <button
             type="button"
@@ -76,9 +86,9 @@ export function AppShell() {
 
       {/*
         A pure layout passthrough: no width, no color, no padding of its own.
-        Buckets is full width with its own spacing; secrets and API keys pin
-        themselves to the old <main>'s exact box (width, padding, height
-        stretch, and colour) until their own piece reskins them.
+        Every page now supplies its own width, padding and colour; the light
+        mode pin that used to sit here while pages waited for their reskin is
+        gone (ADR 003 A17).
       */}
       <main className="flex w-full flex-1 flex-col">
         <Outlet />

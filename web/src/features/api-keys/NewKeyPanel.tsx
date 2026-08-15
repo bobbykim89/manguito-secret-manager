@@ -52,7 +52,7 @@ export function NewKeyPanel({
   return (
     <section
       aria-label={`Token for ${apiKey.name}`}
-      className="flex flex-col gap-3 rounded border p-4"
+      className="flex flex-col gap-3 rounded-md border border-border bg-surface p-4"
     >
       <h2 className="font-medium">Key &ldquo;{apiKey.name}&rdquo; created</h2>
 
@@ -61,7 +61,9 @@ export function NewKeyPanel({
         key and create another.
       </Alert>
 
-      <code className="break-all rounded bg-slate-100 px-2 py-1 font-mono text-sm">
+      {/* bg-bg inside a bg-surface panel, so the token reads as a nested field
+          rather than blending into the card. */}
+      <code className="break-all rounded-sm border border-border bg-bg px-3 py-2 font-mono text-sm">
         {apiKey.token}
       </code>
 
@@ -69,21 +71,21 @@ export function NewKeyPanel({
         <button
           type="button"
           onClick={() => void copy()}
-          className="rounded border px-3 py-1 text-sm"
+          className="rounded-md border border-border px-4 py-2 font-sans text-sm"
         >
           Copy
         </button>
         <button
           type="button"
           onClick={onAcknowledge}
-          className="rounded bg-slate-900 px-3 py-1 text-sm text-white"
+          className="rounded-md bg-accent px-4 py-2 font-sans text-sm font-semibold text-bg"
         >
           I have saved it
         </button>
       </div>
 
       {copyState === "copied" && (
-        <p role="status" className="text-sm text-slate-600">
+        <p role="status" className="text-sm text-text-muted">
           Copied
         </p>
       )}
@@ -92,7 +94,10 @@ export function NewKeyPanel({
       {blocker.state === "blocked" && (
         // A div wrapping an Alert, not an Alert containing buttons: Alert
         // renders a <p>, and a button inside a <p> is invalid HTML.
-        <div className="flex flex-col gap-2 rounded border border-amber-300 bg-amber-50 p-3">
+        <div className="flex flex-col gap-2 rounded-md border border-accent bg-accent-100 p-3">
+          {/* There is no amber token in this theme. accent-100 with an accent
+              border reads as a warm warning in both themes and stays inside the
+              100/800 pair that carries dark mode values for tags and chips. */}
           <Alert variant="inline" tone="warning">
             Leave without saving your token? It cannot be recovered.
           </Alert>
@@ -100,14 +105,14 @@ export function NewKeyPanel({
             <button
               type="button"
               onClick={() => blocker.reset()}
-              className="rounded border px-2 py-1"
+              className="rounded-md border border-border px-4 py-2 font-sans text-sm"
             >
               Stay
             </button>
             <button
               type="button"
               onClick={() => blocker.proceed()}
-              className="rounded border px-2 py-1"
+              className="rounded-md border border-border px-4 py-2 font-sans text-sm"
             >
               Leave
             </button>

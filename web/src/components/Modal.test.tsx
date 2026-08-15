@@ -149,4 +149,22 @@ describe("Modal", () => {
 
     expect(screen.getByRole("textbox", { name: "Name" })).toHaveFocus();
   });
+
+  // A class assertion, which this suite otherwise avoids. jsdom performs no
+  // layout, so the only thing a test here can check is that the height bound is
+  // still declared. Without it a tall dialog centres in a fixed backdrop that
+  // does not scroll, putting its own heading permanently out of reach, and
+  // nothing else in the suite would notice its removal. Alert.test.tsx sets the
+  // same precedent for the same reason.
+  it("bounds its own height so a tall body stays reachable", () => {
+    render(
+      <Modal open onClose={() => {}} title="Tall">
+        <p>body</p>
+      </Modal>,
+    );
+
+    const dialog = screen.getByRole("dialog", { name: "Tall" });
+    expect(dialog.className).toMatch(/max-h-/);
+    expect(dialog.className).toMatch(/overflow-y-auto/);
+  });
 });

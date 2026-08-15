@@ -1,12 +1,13 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { MemoryRouter, createMemoryRouter, RouterProvider } from "react-router";
+import { useState } from "react";
+import { createMemoryRouter, RouterProvider } from "react-router";
 import { describe, expect, it } from "vitest";
 
 import { renderWithProviders } from "../../test/render";
 import { server } from "../../test/setup";
-import { CreateKeyForm } from "./CreateKeyForm";
+import { CreateKeyFlow } from "./CreateKeyFlow";
 
 const KEYS = "http://localhost:8000/v1/keys";
 
@@ -14,16 +15,68 @@ function aBucket(name: string) {
   return { id: `id-${name}`, name, created_at: "2026-08-11T00:00:00Z", secret_count: 0 };
 }
 
-/** A data router, because a successful create renders NewKeyPanel's blocker. */
-function renderForm(buckets = [aBucket("prod"), aBucket("dev")]) {
+/**
+ * A data router, because a successful create renders NewKeyPanel's blocker.
+ *
+ * `open` is a fixed true rather than page state: this suite exercises the flow
+ * with its dialog open, and the page level wiring (the dialog closing, the
+ * trigger hiding) is KeysPage's to test. The dialog still closes on success on
+ * its own, because CreateKeyFlow gates the Modal on `!create.data` too, which is
+ * what the "replaces itself with the token panel" test below proves.
+ */
+function renderFlow(buckets = [aBucket("prod"), aBucket("dev")]) {
   const router = createMemoryRouter(
-    [{ path: "/keys", element: <CreateKeyForm buckets={buckets} /> }],
+    [
+      {
+        path: "/keys",
+        element: (
+          <CreateKeyFlow
+            buckets={buckets}
+            open
+            onClose={() => {}}
+            onCreated={() => {}}
+            onAcknowledged={() => {}}
+          />
+        ),
+      },
+    ],
     { initialEntries: ["/keys"] },
   );
   return renderWithProviders(<RouterProvider router={router} />);
 }
 
-describe("CreateKeyForm", () => {
+/**
+ * Same wiring as renderFlow, but `open` is real state instead of a fixed
+ * `true`, with a "Reopen" trigger standing in for the header button that
+ * would flip it back on in KeysPage. Only tests that need to close and
+ * reopen the dialog reach for this; everything else uses renderFlow.
+ */
+function renderFlowWithToggle(buckets = [aBucket("prod"), aBucket("dev")]) {
+  function Harness() {
+    const [open, setOpen] = useState(true);
+    return (
+      <>
+        <button type="button" onClick={() => setOpen(true)}>
+          Reopen
+        </button>
+        <CreateKeyFlow
+          buckets={buckets}
+          open={open}
+          onClose={() => setOpen(false)}
+          onCreated={() => {}}
+          onAcknowledged={() => {}}
+        />
+      </>
+    );
+  }
+
+  const router = createMemoryRouter([{ path: "/keys", element: <Harness /> }], {
+    initialEntries: ["/keys"],
+  });
+  return renderWithProviders(<RouterProvider router={router} />);
+}
+
+describe("CreateKeyFlow", () => {
   it("sends the chosen name, buckets, flags and an expiry instant", async () => {
     let body: Record<string, unknown> | undefined;
     server.use(
@@ -50,11 +103,11 @@ describe("CreateKeyForm", () => {
         );
       }),
     );
-    renderForm();
+    renderFlow();
 
     await userEvent.type(screen.getByLabelText(/name/i), "ci-deploy");
     await userEvent.click(screen.getByRole("checkbox", { name: "prod" }));
-    await userEvent.click(screen.getByRole("checkbox", { name: /write secrets/i }));
+    await userEvent.click(screen.getByRole("switch", { name: /write secrets/i }));
     await userEvent.click(screen.getByRole("button", { name: /create key/i }));
 
     await waitFor(() => expect(body).toBeDefined());
@@ -94,7 +147,7 @@ describe("CreateKeyForm", () => {
         );
       }),
     );
-    renderForm();
+    renderFlow();
 
     await userEvent.type(screen.getByLabelText(/name/i), "forever");
     await userEvent.click(screen.getByRole("checkbox", { name: "prod" }));
@@ -113,7 +166,7 @@ describe("CreateKeyForm", () => {
         return HttpResponse.json({ ok: true, data: {} }, { status: 201 });
       }),
     );
-    renderForm();
+    renderFlow();
 
     await userEvent.type(screen.getByLabelText(/name/i), "no-buckets");
     await userEvent.click(screen.getByRole("button", { name: /create key/i }));
@@ -123,13 +176,13 @@ describe("CreateKeyForm", () => {
   });
 
   it("states that any key can already read secrets, so the reveal box is not misread", () => {
-    renderForm();
+    renderFlow();
 
     // may_reveal gates only the bulk path. A key without it still reads
     // secrets one at a time, and the form must not imply otherwise.
     expect(screen.getByText(/read secrets in these buckets one at a time/i)).toBeInTheDocument();
-    expect(screen.getByRole("checkbox", { name: /bulk reveal/i })).toBeInTheDocument();
-    expect(screen.queryByRole("checkbox", { name: /^reveal secrets$/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: /bulk reveal/i })).toBeInTheDocument();
+    expect(screen.queryByRole("switch", { name: /^reveal secrets$/i })).not.toBeInTheDocument();
   });
 
   it("replaces itself with the token panel on success", async () => {
@@ -156,7 +209,7 @@ describe("CreateKeyForm", () => {
         ),
       ),
     );
-    renderForm();
+    renderFlow();
 
     await userEvent.type(screen.getByLabelText(/name/i), "ci-deploy");
     await userEvent.click(screen.getByRole("checkbox", { name: "prod" }));
@@ -191,7 +244,7 @@ describe("CreateKeyForm", () => {
         ),
       ),
     );
-    renderForm();
+    renderFlow();
 
     await userEvent.type(screen.getByLabelText(/name/i), "ci-deploy");
     await userEvent.click(screen.getByRole("checkbox", { name: "prod" }));
@@ -215,7 +268,7 @@ describe("CreateKeyForm", () => {
         ),
       ),
     );
-    renderForm();
+    renderFlow();
 
     await userEvent.type(screen.getByLabelText(/name/i), "keep-me");
     await userEvent.click(screen.getByRole("checkbox", { name: "prod" }));
@@ -225,17 +278,84 @@ describe("CreateKeyForm", () => {
     expect(screen.getByLabelText(/name/i)).toHaveValue("keep-me");
   });
 
-  it("tells an account with no buckets to make one first", () => {
-    renderWithProviders(
-      <MemoryRouter>
-        <CreateKeyForm buckets={[]} />
-      </MemoryRouter>,
+  it("clears a stale server error when the dialog is closed and reopened", async () => {
+    server.use(
+      http.post(KEYS, () =>
+        HttpResponse.json(
+          { ok: false, error: { code: "BUCKET_NOT_FOUND", message: "No bucket named 'prod'." } },
+          { status: 404 },
+        ),
+      ),
     );
+    renderFlowWithToggle();
 
-    expect(screen.getByRole("link", { name: /create a bucket/i })).toHaveAttribute(
-      "href",
-      "/buckets",
+    await userEvent.type(screen.getByLabelText(/name/i), "keep-me");
+    await userEvent.click(screen.getByRole("checkbox", { name: "prod" }));
+    await userEvent.click(screen.getByRole("button", { name: /create key/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/no bucket named/i);
+
+    await userEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /^reopen$/i }));
+    expect(await screen.findByRole("dialog", { name: /new api key/i })).toBeInTheDocument();
+    // The stale refusal from the previous attempt must not greet this open.
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("writes nothing when cancelled", async () => {
+    let calls = 0;
+    server.use(
+      http.post(KEYS, () => {
+        calls += 1;
+        return HttpResponse.json({ ok: true, data: {} }, { status: 201 });
+      }),
     );
-    expect(screen.queryByRole("button", { name: /create key/i })).not.toBeInTheDocument();
+    renderFlow();
+
+    await userEvent.type(screen.getByLabelText(/name/i), "never-sent");
+    await userEvent.click(screen.getByRole("checkbox", { name: "prod" }));
+    await userEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
+
+    expect(calls).toBe(0);
+  });
+
+  it("sends can_reveal without can_write when only Bulk reveal is toggled", async () => {
+    let body: Record<string, unknown> | undefined;
+    server.use(
+      http.post(KEYS, async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(
+          {
+            ok: true,
+            data: {
+              id: "1",
+              lookup_id: "a3f9c2e1",
+              name: "ci-deploy",
+              buckets: ["prod"],
+              can_write: false,
+              can_reveal: true,
+              expires_at: null,
+              revoked_at: null,
+              last_used_at: null,
+              created_at: "2026-08-11T00:00:00Z",
+              token: "msm_a3f9c2e1_secret",
+            },
+          },
+          { status: 201 },
+        );
+      }),
+    );
+    renderFlow();
+
+    await userEvent.type(screen.getByLabelText(/name/i), "ci-deploy");
+    await userEvent.click(screen.getByRole("checkbox", { name: "prod" }));
+    await userEvent.click(screen.getByRole("switch", { name: /bulk reveal/i }));
+    await userEvent.click(screen.getByRole("button", { name: /create key/i }));
+
+    await waitFor(() => expect(body).toBeDefined());
+    expect(body?.can_reveal).toBe(true);
+    expect(body?.can_write).toBe(false);
   });
 });

@@ -35,7 +35,7 @@ function renderRow(overrides: Record<string, unknown> = {}) {
 }
 
 describe("KeyRow", () => {
-  it("shows the name, the lookup id and the scope", () => {
+  it("shows the name, the lookup id and each bucket in scope", () => {
     renderRow({ buckets: ["prod", "dev"] });
     const row = screen.getByRole("listitem", { name: /ci-deploy/ });
 
@@ -43,19 +43,27 @@ describe("KeyRow", () => {
     // Not secret, and exists precisely to identify a key without
     // authenticating as one.
     expect(within(row).getByText(/msm_a3f9c2e1/)).toBeInTheDocument();
-    expect(within(row).getByText(/prod, dev/)).toBeInTheDocument();
+    // One tag per bucket now, rather than a joined string.
+    expect(within(row).getByText("prod")).toBeInTheDocument();
+    expect(within(row).getByText("dev")).toBeInTheDocument();
   });
 
   it("says read only when neither flag is set", () => {
     renderRow();
+    const row = screen.getByRole("listitem", { name: /ci-deploy/ });
 
-    expect(screen.getByText(/read only/i)).toBeInTheDocument();
+    expect(within(row).getByText(/^read only$/i)).toBeInTheDocument();
+    expect(within(row).queryByText(/^write$/i)).not.toBeInTheDocument();
+    expect(within(row).queryByText(/^bulk reveal$/i)).not.toBeInTheDocument();
   });
 
   it("names both capabilities when both are set", () => {
     renderRow({ can_write: true, can_reveal: true });
+    const row = screen.getByRole("listitem", { name: /ci-deploy/ });
 
-    expect(screen.getByText(/write and bulk reveal/i)).toBeInTheDocument();
+    expect(within(row).getByText(/^write$/i)).toBeInTheDocument();
+    expect(within(row).getByText(/^bulk reveal$/i)).toBeInTheDocument();
+    expect(within(row).queryByText(/^read only$/i)).not.toBeInTheDocument();
   });
 
   it("badges an active key and offers revoke", () => {
@@ -94,12 +102,10 @@ describe("KeyRow", () => {
     const row = screen.getByRole("listitem", { name: /ci-deploy/ });
 
     await userEvent.click(within(row).getByRole("button", { name: /revoke ci-deploy/i }));
-    expect(within(row).getByText(/revoke this key/i)).toBeInTheDocument();
-    await userEvent.click(
-      within(row).getByRole("button", { name: /cancel revoking ci-deploy/i }),
-    );
+    const dialog = await screen.findByRole("dialog", { name: /revoke key/i });
+    await userEvent.click(within(dialog).getByRole("button", { name: /^cancel$/i }));
 
-    expect(within(row).queryByText(/revoke this key/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(calls).toBe(0);
   });
 
@@ -115,14 +121,13 @@ describe("KeyRow", () => {
     const row = screen.getByRole("listitem", { name: /ci-deploy/ });
 
     await userEvent.click(within(row).getByRole("button", { name: /revoke ci-deploy/i }));
-    await userEvent.click(
-      within(row).getByRole("button", { name: /confirm revoking ci-deploy/i }),
-    );
+    const dialog = await screen.findByRole("dialog", { name: /revoke key/i });
+    await userEvent.click(within(dialog).getByRole("button", { name: /^revoke key$/i }));
 
     await waitFor(() => expect(revoked).toBe(ID));
   });
 
-  it("shows a failed revoke on its own row", async () => {
+  it("shows a failed revoke in the dialog it was confirmed from", async () => {
     server.use(
       http.delete(`${KEYS}/:id`, () =>
         HttpResponse.json(
@@ -135,10 +140,25 @@ describe("KeyRow", () => {
     const row = screen.getByRole("listitem", { name: /ci-deploy/ });
 
     await userEvent.click(within(row).getByRole("button", { name: /revoke ci-deploy/i }));
-    await userEvent.click(
-      within(row).getByRole("button", { name: /confirm revoking ci-deploy/i }),
-    );
+    const dialog = await screen.findByRole("dialog", { name: /revoke key/i });
+    await userEvent.click(within(dialog).getByRole("button", { name: /^revoke key$/i }));
 
-    expect(await within(row).findByRole("alert")).toHaveTextContent(/no such api key/i);
+    // The dialog stays open so the message sits next to the button that failed.
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(/no such api key/i);
+    expect(screen.getByRole("dialog", { name: /revoke key/i })).toBeInTheDocument();
+  });
+
+  it("says so once a key is revoked", async () => {
+    server.use(
+      http.delete(`${KEYS}/:id`, () => HttpResponse.json({ ok: true, data: { revoked: true } })),
+    );
+    renderRow();
+    const row = screen.getByRole("listitem", { name: /ci-deploy/ });
+
+    await userEvent.click(within(row).getByRole("button", { name: /revoke ci-deploy/i }));
+    const dialog = await screen.findByRole("dialog", { name: /revoke key/i });
+    await userEvent.click(within(dialog).getByRole("button", { name: /^revoke key$/i }));
+
+    expect(await screen.findByText(/key ci-deploy revoked/i)).toBeInTheDocument();
   });
 });

@@ -87,7 +87,7 @@ export function Modal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       onMouseDown={(event) => {
         mouseDownOnBackdropRef.current = event.target === event.currentTarget;
       }}
@@ -95,6 +95,11 @@ export function Modal({
         if (mouseDownOnBackdropRef.current) onClose();
       }}
     >
+      {/* Height bounded and internally scrollable. The backdrop is fixed and
+          does not scroll, so an unbounded panel taller than the viewport would
+          put its own heading above the top edge with no way to reach it. The
+          backdrop's p-4 is the other half of the same pair: it keeps the panel
+          off the viewport edges, and 2rem is exactly what max-h subtracts. */}
       <div
         ref={dialogRef}
         role="dialog"
@@ -102,7 +107,7 @@ export function Modal({
         aria-labelledby={titleId}
         tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
-        className="w-full max-w-md rounded-lg border border-border bg-surface p-6 shadow-lg"
+        className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-lg border border-border bg-surface p-6 shadow-lg"
       >
         <h2 id={titleId} className="text-lg font-semibold">
           {title}

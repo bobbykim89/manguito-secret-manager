@@ -165,4 +165,16 @@ describe("AppShell chrome", () => {
     expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
     expect(window.localStorage.getItem("theme")).toBe("dark");
   });
+
+  // A class assertion, which this suite otherwise avoids, for the same reason
+  // Modal's height bound has one: jsdom performs no layout, so a wrapping
+  // header cannot be verified here. The real check is a browser at 380px. This
+  // exists so the fix cannot be deleted silently by a later refactor.
+  it("lets its header wrap rather than overflow a narrow viewport", () => {
+    signedIn();
+
+    renderShell();
+
+    expect(screen.getByRole("banner").className).toMatch(/flex-wrap/);
+  });
 });

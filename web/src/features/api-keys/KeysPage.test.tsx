@@ -1,4 +1,5 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { describe, expect, it } from "vitest";
@@ -93,7 +94,7 @@ describe("KeysPage", () => {
 
     resolveBuckets?.();
 
-    expect(await screen.findByRole("button", { name: /create key/i })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /new key/i })).toBeInTheDocument();
   });
 
   it("surfaces a bucket list fetch failure instead of showing nothing", async () => {
@@ -133,5 +134,84 @@ describe("KeysPage", () => {
 
     expect(screen.getByRole("listitem", { name: "stable" })).toBeInTheDocument();
     expect(await screen.findByRole("alert")).toHaveTextContent(/could not refresh/i);
+  });
+
+  // Migrated from CreateKeyForm.test.tsx: the guidance moved from the form to
+  // the page, so nobody opens a dialog to be told no.
+  it("tells an account with no buckets to make one first", async () => {
+    bucketsReturn([]);
+    server.use(http.get(`${BASE}/v1/keys`, () => HttpResponse.json({ ok: true, data: [] })));
+    renderPage();
+
+    expect(await screen.findByRole("link", { name: /create a bucket/i })).toHaveAttribute(
+      "href",
+      "/buckets",
+    );
+    expect(screen.queryByRole("button", { name: /new key/i })).not.toBeInTheDocument();
+  });
+
+  it("opens the create dialog from the header", async () => {
+    bucketsReturn(["prod"]);
+    server.use(
+      http.get(`${BASE}/v1/keys`, () => HttpResponse.json({ ok: true, data: [aKey("ci-deploy")] })),
+    );
+    renderPage();
+
+    await userEvent.click(await screen.findByRole("button", { name: /new key/i }));
+
+    expect(await screen.findByRole("dialog", { name: /new api key/i })).toBeInTheDocument();
+  });
+
+  it("opens the create dialog from the empty state", async () => {
+    bucketsReturn(["prod"]);
+    server.use(http.get(`${BASE}/v1/keys`, () => HttpResponse.json({ ok: true, data: [] })));
+    renderPage();
+
+    await userEvent.click(await screen.findByRole("button", { name: /create your first key/i }));
+
+    expect(await screen.findByRole("dialog", { name: /new api key/i })).toBeInTheDocument();
+  });
+
+  it("offers no second create while a token is still unacknowledged", async () => {
+    bucketsReturn(["prod"]);
+    server.use(
+      http.get(`${BASE}/v1/keys`, () => HttpResponse.json({ ok: true, data: [] })),
+      http.post(`${BASE}/v1/keys`, () =>
+        HttpResponse.json(
+          {
+            ok: true,
+            data: {
+              id: "1",
+              lookup_id: "a3f9c2e1",
+              name: "ci-deploy",
+              buckets: ["prod"],
+              can_write: false,
+              can_reveal: false,
+              expires_at: null,
+              revoked_at: null,
+              last_used_at: null,
+              created_at: "2026-08-11T00:00:00Z",
+              token: "msm_a3f9c2e1_secret",
+            },
+          },
+          { status: 201 },
+        ),
+      ),
+    );
+    renderPage();
+
+    await userEvent.click(await screen.findByRole("button", { name: /new key/i }));
+    const dialog = await screen.findByRole("dialog", { name: /new api key/i });
+    await userEvent.type(within(dialog).getByLabelText(/name/i), "ci-deploy");
+    await userEvent.click(within(dialog).getByRole("checkbox", { name: "prod" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: /create key/i }));
+    await screen.findByText("msm_a3f9c2e1_secret");
+
+    // Creating a second key here would lose the first token permanently.
+    expect(screen.queryByRole("button", { name: /new key/i })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /i have saved it/i }));
+
+    expect(await screen.findByRole("button", { name: /new key/i })).toBeInTheDocument();
   });
 });

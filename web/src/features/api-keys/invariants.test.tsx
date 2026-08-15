@@ -63,6 +63,7 @@ function renderPage() {
 }
 
 async function createAKey() {
+  await userEvent.click(await screen.findByRole("button", { name: /new key/i }));
   await userEvent.type(await screen.findByLabelText(/name/i), "ci-deploy");
   await userEvent.click(screen.getByRole("checkbox", { name: "prod" }));
   await userEvent.click(screen.getByRole("button", { name: /create key/i }));
@@ -170,7 +171,8 @@ describe("the show once guarantee", () => {
     await userEvent.click(screen.getByRole("button", { name: /i have saved it/i }));
 
     expect(screen.queryByText(TOKEN)).not.toBeInTheDocument();
-    // Nothing can bring it back: the form is what returns, not the panel.
-    expect(await screen.findByRole("button", { name: /create key/i })).toBeInTheDocument();
+    // Nothing can bring it back: the create affordance is what returns, not
+    // the panel.
+    expect(await screen.findByRole("button", { name: /new key/i })).toBeInTheDocument();
   });
 });
