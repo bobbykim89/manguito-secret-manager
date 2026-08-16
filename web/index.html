@@ -4,7 +4,42 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Manguito Secret Manager</title>
+    <meta
+      name="description"
+      content="A self hosted secret manager. Secrets live in buckets, encrypted at rest, and reachable through the web interface or a scoped API key."
+    />
+    <link rel="canonical" href="%VITE_SITE_URL%/" />
     <link rel="icon" type="image/webp" href="/logo.webp" />
+
+    <!--
+      Static, and necessarily so. This is a single page application: every
+      route serves this same file, and crawlers do not run JavaScript, so
+      these are the only tags any crawler will ever see. Per route cards
+      would need prerendering, which two public pages do not justify.
+
+      The absolute URLs come from VITE_SITE_URL, substituted by Vite at build
+      time, so the repository carries no hardcoded domain.
+    -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Manguito Secret Manager" />
+    <meta property="og:title" content="Manguito Secret Manager" />
+    <meta
+      property="og:description"
+      content="A self hosted secret manager. Secrets live in buckets, encrypted at rest, and reachable through the web interface or a scoped API key."
+    />
+    <meta property="og:url" content="%VITE_SITE_URL%/" />
+    <meta property="og:image" content="%VITE_SITE_URL%/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Manguito Secret Manager" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Manguito Secret Manager" />
+    <meta
+      name="twitter:description"
+      content="A self hosted secret manager. Secrets live in buckets, encrypted at rest, and reachable through the web interface or a scoped API key."
+    />
+    <meta name="twitter:image" content="%VITE_SITE_URL%/og.png" />
     <script>
       (function () {
         var stored = localStorage.getItem("theme");

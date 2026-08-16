@@ -1,0 +1,12 @@
+# Crawlers asking for /buckets get this application's index.html with a 200,
+# because the router runs in the browser. Without these rules a secret
+# manager's internal route names end up in search indexes, describing pages
+# that render nothing without a session.
+#
+# No Sitemap line: files in public/ are copied verbatim with no environment
+# substitution, so it could not stay domain agnostic, and two public pages do
+# not need one.
+User-agent: *
+Disallow: /buckets
+Disallow: /keys
+Disallow: /health
