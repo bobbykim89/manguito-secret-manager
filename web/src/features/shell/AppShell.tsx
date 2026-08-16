@@ -213,9 +213,15 @@ export function AppShell() {
           </NavLink>
         </nav>
 
+        {/* flex-1 with min-w-0 rather than ml-auto with w-auto, so this group
+            takes the leftover space and can also give it back. Sized to its
+            content it could not shrink, and the header wrapped to two rows at
+            768px instead of the email truncating, which is the one job the
+            email's own min-w-0 and truncate exist to do. justify-end keeps it
+            hard right, exactly where ml-auto had it. */}
         <div
           id="shell-account"
-          className={`${menuOpen ? "flex" : "hidden"} w-full items-center gap-4 md:ml-auto md:flex md:w-auto`}
+          className={`${menuOpen ? "flex" : "hidden"} w-full items-center gap-4 md:flex md:min-w-0 md:flex-1 md:justify-end`}
         >
           {/* The icons flank the switch rather than living inside it:
               ToggleSwitch also renders the API key capability flags, so theme
@@ -251,7 +257,11 @@ export function AppShell() {
             type="button"
             onClick={() => signOut.mutate()}
             disabled={signOut.isPending}
-            className="rounded-sm border border-border px-3 py-1 font-sans text-sm"
+            // shrink-0 with nowrap: it is the last item in a row that holds a
+            // truncating email, and without these it was the thing that gave,
+            // breaking across two lines as "Sign / out". The email is what
+            // should shrink here.
+            className="shrink-0 rounded-sm border border-border px-3 py-1 font-sans text-sm whitespace-nowrap"
           >
             Sign out
           </button>
