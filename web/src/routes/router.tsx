@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate, type RouteObject } from "react-router";
 
+import { AboutPage } from "../features/about/AboutPage";
 import { KeysPage } from "../features/api-keys/KeysPage";
 import { LoginPage } from "../features/auth/LoginPage";
 import { RequireSession } from "../features/auth/RequireSession";
@@ -20,6 +21,9 @@ import { NotFound } from "./NotFound";
 export const routes: RouteObject[] = [
   { path: "/login", element: <LoginPage /> },
   { path: "/health", element: <HealthPage /> },
+  // Public like login and health: a page nobody can reach signed out is a
+  // page no crawler can reach either, and this one exists to be found.
+  { path: "/about", element: <AboutPage /> },
   {
     element: <RequireSession />,
     children: [

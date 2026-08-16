@@ -113,4 +113,13 @@ describe("LoginPage", () => {
       2,
     );
   });
+
+  it("offers the about page to a visitor who has not signed in", async () => {
+    renderLogin();
+
+    expect(await screen.findByRole("link", { name: /about this project/i })).toHaveAttribute(
+      "href",
+      "/about",
+    );
+  });
 });
