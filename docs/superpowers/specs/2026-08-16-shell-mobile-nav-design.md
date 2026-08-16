@@ -74,8 +74,9 @@ So the controls stay single and only their layout changes.
 A useful consequence: Tailwind's `hidden` is CSS, and `web/vite.config.ts` sets
 `test: { css: false }`, so jsdom never applies it. Every element stays in the
 DOM whatever the menu state, and **11 of the 12 existing `AppShell` tests pass
-untouched**. The disclosure is tested through `aria-expanded`, which is real
-state rather than styling, and is the right thing to assert regardless.
+untouched**. The twelfth is rewritten rather than deleted, for reasons set out
+below. The disclosure is tested through `aria-expanded`, which is real state
+rather than styling, and is the right thing to assert regardless.
 
 ### Layout, without moving anything on desktop
 
@@ -93,6 +94,14 @@ positions. Flex wrap ordering resolves it without duplication:
 Desktop renders brand, then nav immediately after it, then the account group
 pushed right by `md:ml-auto`. That is **today's layout exactly**. The request
 was to fix mobile, not to change desktop, and this keeps that promise.
+
+Two changes to the header's own classes serve that promise rather than
+undermining it. `justify-between` goes, because it distributes four children
+where it used to distribute two; `ml-auto` on the hamburger and `md:ml-auto` on
+the account group reproduce its effect deliberately at each width. And the gap
+becomes `gap-x-6`, matching the 24px the brand and nav sit at today now that
+the wrapper holding them at `gap-6` is gone. The hamburger is `hidden` at `md`
+and above, so it is out of flow and contributes no gap of its own.
 
 Mobile puts brand and hamburger on the first row, with nav and account each
 wrapping to a full width row beneath when open.
@@ -116,24 +125,40 @@ one is a common accessibility mistake, and it is why `Modal` is the wrong prior
 art to reuse here despite already implementing trapping, Escape and focus
 restoration.
 
-### The guard that is being removed
+### The guard that stays, under a new name
 
 `AppShell.test.tsx` asserts `flex-wrap` in a test named "lets its header wrap
 rather than overflow a narrow viewport". That class was added in the API keys
 piece specifically to stop 380px overflow, and it was verified in a browser.
 
-The hamburger supersedes that mechanism: below `md` the bar is only a logo and
-a button, which cannot overflow. Keeping the class with a guard whose stated
-rationale no longer holds would be worse than removing both, so both go, and
-the protection is re-established by the disclosure tests plus browser checks.
+An earlier revision of this spec said the hamburger supersedes that mechanism
+and that the class and its guard should both go. **That was wrong, and the
+error is worth recording because it nearly shipped.** `w-full` on a flex item
+does not start a new row; it only sets the item's basis, and in a non-wrapping
+container everything on the line simply squeezes to fit. The mobile stack in
+the table above works *because* the header wraps. Deleting `flex-wrap` would
+not have failed a single test, and would have collapsed the entire mobile menu
+onto one crushed row.
 
-This does relocate the risk. `flex-wrap` was also quietly covering the band
-just above the breakpoint, where the full row reappears at its tightest.
-**768px therefore becomes a named browser check**, not merely 380 and 1280.
+So `flex-wrap` stays, and it is more load-bearing than before, not less: it has
+gone from a defensive measure against overflow to the mechanism the disclosure
+is built on. The test stays too, with its name and comment rewritten to
+describe what the class now does. This follows the codebase's existing pattern
+for class assertions, the same one `Modal`'s height bound and the `vercel.json`
+rewrite carry: an exception to "test behaviour, not classes", taken only where
+nothing reachable from a test can observe the thing and losing it fails
+silently.
+
+The risk does still move. `flex-wrap` alone used to cover the band just above
+the breakpoint, where the full row reappears at its tightest, and now the
+hamburger has vanished at exactly that width. **768px therefore becomes a named
+browser check**, not merely 380 and 1280.
 
 ## Tests
 
-The 11 surviving `AppShell` tests need no changes. New behavioural tests:
+Eleven of the twelve existing `AppShell` tests need no changes. The twelfth,
+the `flex-wrap` assertion, keeps its assertion and gets a new name and comment.
+New behavioural tests:
 
 - The menu is closed by default: `aria-expanded` is `false`
 - Clicking the button opens it
@@ -154,8 +179,8 @@ passing jsdom tests could not see, and `ToggleSwitch` in particular shipped an
 1. **380px, closed:** the bar is logo plus hamburger, no horizontal overflow.
 2. **380px, open:** all four groups readable and inside the viewport, in light
    and dark.
-3. **768px:** the new risk point, where the full row reappears at its tightest.
-   This is the case `flex-wrap` was covering before this change removed it.
+3. **768px:** the new risk point, the first width at which the hamburger is
+   gone and the full row is back, at its tightest.
 4. **1280px:** identical to today, confirming desktop really is preserved.
 5. **The switch itself:** knob inside the track, sun and moon rendering, the
    correct side accented in each theme.
@@ -173,8 +198,9 @@ passing jsdom tests could not see, and `ToggleSwitch` in particular shipped an
 - **`AppShell` renders on every authenticated page and the app is live**, so a
   regression is immediately user visible. This is why desktop preservation is
   a named check rather than an assumption.
-- **Removing `flex-wrap` moves risk to the breakpoint boundary**, which is why
-  768px is checked explicitly.
+- **`flex-wrap` is now load-bearing for the mobile stack**, so its guard stays.
+  Risk still moves to the breakpoint boundary, where the hamburger disappears
+  and the full row returns, which is why 768px is checked explicitly.
 - **The disclosure has real state**, unlike everything else in this header. The
   failure modes are a menu that cannot be dismissed, or focus lost after
   closing, so both are tested directly.
