@@ -177,4 +177,13 @@ describe("AppShell chrome", () => {
 
     expect(screen.getByRole("banner").className).toMatch(/flex-wrap/);
   });
+
+  it("links to the about page from the footer", async () => {
+    signedIn();
+
+    renderShell();
+
+    const footer = await screen.findByRole("navigation", { name: /footer/i });
+    expect(within(footer).getByRole("link", { name: /about/i })).toHaveAttribute("href", "/about");
+  });
 });

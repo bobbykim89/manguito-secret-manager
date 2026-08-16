@@ -108,6 +108,9 @@ export function AppShell() {
           <NavLink to="/keys" viewTransition className="text-accent">
             Keys
           </NavLink>
+          <NavLink to="/about" viewTransition className="text-accent">
+            About
+          </NavLink>
         </nav>
       </footer>
     </div>

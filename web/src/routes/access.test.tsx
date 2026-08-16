@@ -273,3 +273,18 @@ it("walks from the bucket list to the keys page through the nav bar", async () =
   expect(await screen.findByRole("heading", { name: /api keys/i })).toBeInTheDocument();
   expect(router.state.location.pathname).toBe("/keys");
 });
+
+it("shows about to a signed out visitor rather than sending them to login", async () => {
+  signedOut();
+  const router = createMemoryRouter(routes, { initialEntries: ["/about"] });
+
+  renderWithProviders(<RouterProvider router={router} />);
+
+  // The whole public half of this page rests on this staying true. Moving
+  // /about under RequireSession would still look correct to a signed in
+  // developer and would silently make it invisible to crawlers.
+  expect(
+    await screen.findByRole("heading", { level: 1, name: /about manguito secret manager/i }),
+  ).toBeInTheDocument();
+  expect(router.state.location.pathname).toBe("/about");
+});

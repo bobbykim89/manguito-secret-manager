@@ -1,4 +1,4 @@
-import { Navigate, useSearchParams } from "react-router";
+import { Link, Navigate, useSearchParams } from "react-router";
 
 import { apiUrl } from "../../api/client";
 import { Alert } from "../../components/Alert";
@@ -55,7 +55,7 @@ export function LoginPage() {
         </p>
       </div>
 
-      <main className="flex items-center justify-center p-8">
+      <main className="flex flex-col items-center justify-center p-8">
         <h1 className="sr-only md:hidden">Manguito Secret Manager</h1>
         <div className="flex w-[min(380px,100%)] flex-col gap-4 rounded-sm border border-border bg-surface p-6">
           <h2 className="text-2xl font-semibold">Sign in</h2>
@@ -75,6 +75,12 @@ export function LoginPage() {
             Continue with Google
           </a>
         </div>
+
+        <p className="mt-4 text-center text-sm text-text-muted">
+          <Link to="/about" className="hover:text-accent">
+            About this project
+          </Link>
+        </p>
       </main>
     </div>
   );

@@ -189,15 +189,20 @@ deploys on `main`.
 3. Framework Preset should auto-detect as **Vite**. Build command
    `pnpm build`, output directory `dist`, install command `pnpm install`.
    These match `web/package.json`, so the defaults should be correct.
-4. Add an environment variable, for Production (and Preview if you want
+4. Add two environment variables, for Production (and Preview if you want
    previews to work against the same API):
 
    ```
-   VITE_API_URL = https://api.example.com
+   VITE_API_URL  = https://api.example.com
+   VITE_SITE_URL = https://app.example.com
    ```
 
-   This is the only variable the frontend reads. It is baked in at build time,
-   so changing it later requires a redeploy, not just a restart.
+   Both are baked in at build time, so changing either later requires a
+   redeploy, not just a restart.
+
+   `VITE_SITE_URL` is the frontend's own origin, not the API's. It fills in
+   the canonical link and the Open Graph tags in `index.html`, so getting it
+   wrong means every shared link previews against the wrong host.
 5. Deploy.
 
 Vercel's git integration then rebuilds on every push to `main` automatically,
