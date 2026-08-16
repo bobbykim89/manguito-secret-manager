@@ -167,10 +167,15 @@ describe("AppShell chrome", () => {
   });
 
   // A class assertion, which this suite otherwise avoids, for the same reason
-  // Modal's height bound has one: jsdom performs no layout, so a wrapping
-  // header cannot be verified here. The real check is a browser at 380px. This
-  // exists so the fix cannot be deleted silently by a later refactor.
-  it("lets its header wrap rather than overflow a narrow viewport", () => {
+  // Modal's height bound and the vercel.json rewrite have one: nothing
+  // reachable from a test can observe it, and losing it fails silently.
+  //
+  // The header wraps so that w-full puts the nav and the account controls each
+  // on their own row when the mobile menu opens. w-full alone would not do it:
+  // it sets a flex item's basis, and in a non-wrapping container the line
+  // squeezes rather than stacks. jsdom performs no layout, so every test here
+  // would still pass with the menu collapsed onto one crushed row.
+  it("keeps the wrap its mobile menu stacks on", () => {
     signedIn();
 
     renderShell();
@@ -185,5 +190,82 @@ describe("AppShell chrome", () => {
 
     const footer = await screen.findByRole("navigation", { name: /footer/i });
     expect(within(footer).getByRole("link", { name: /about/i })).toHaveAttribute("href", "/about");
+  });
+});
+
+describe("AppShell mobile menu", () => {
+  it("starts closed", async () => {
+    signedIn();
+
+    renderShell();
+
+    expect(await screen.findByRole("button", { name: "Menu" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
+
+  it("opens when the button is pressed", async () => {
+    signedIn();
+    const user = userEvent.setup();
+
+    renderShell();
+
+    const button = await screen.findByRole("button", { name: "Menu" });
+    await user.click(button);
+
+    expect(button).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("names both groups it controls, since two collapse together", async () => {
+    signedIn();
+
+    renderShell();
+
+    const button = await screen.findByRole("button", { name: "Menu" });
+    expect(button).toHaveAttribute("aria-controls", "shell-nav shell-account");
+    expect(document.getElementById("shell-nav")).not.toBeNull();
+    expect(document.getElementById("shell-account")).not.toBeNull();
+  });
+
+  it("closes on Escape and hands focus back to the button", async () => {
+    signedIn();
+    const user = userEvent.setup();
+
+    renderShell();
+
+    const button = await screen.findByRole("button", { name: "Menu" });
+    await user.click(button);
+    await user.keyboard("{Escape}");
+
+    expect(button).toHaveAttribute("aria-expanded", "false");
+    expect(button).toHaveFocus();
+  });
+
+  it("closes when something outside the header is clicked", async () => {
+    signedIn();
+    const user = userEvent.setup();
+
+    renderShell();
+
+    const button = await screen.findByRole("button", { name: "Menu" });
+    await user.click(button);
+    await user.click(document.body);
+
+    expect(button).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("closes when a destination is chosen, so it does not hang open after navigating", async () => {
+    signedIn();
+    const user = userEvent.setup();
+
+    renderShell();
+
+    const button = await screen.findByRole("button", { name: "Menu" });
+    await user.click(button);
+    const header = screen.getByRole("banner");
+    await user.click(within(header).getByRole("link", { name: "Keys" }));
+
+    expect(button).toHaveAttribute("aria-expanded", "false");
   });
 });
