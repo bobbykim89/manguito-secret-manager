@@ -1,5 +1,9 @@
 app = "manguito-secret-manager-api"
-primary_region = "sea"
+# sea was retired by Fly and cannot take new resources. sjc is the closest
+# remaining US West region. Keep this near the Neon project's own region:
+# every request makes a database round trip, so a cross country split adds
+# real latency to all of them.
+primary_region = "sjc"
 
 [build]
 
