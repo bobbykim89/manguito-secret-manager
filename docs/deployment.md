@@ -213,12 +213,10 @@ and builds a preview deployment for every pull request.
 In the Vercel project, **Settings → Domains → Add**, enter
 `app.example.com`, and add the DNS record Vercel gives you at your registrar.
 
-### Check deep links
+### Deep links, and why `web/vercel.json` exists
 
-The app uses React Router with real nested routes such as `/keys` and
-`/buckets/alpha`. Open `https://app.example.com/keys` directly in a fresh tab
-and refresh it. If it 404s, the static host is not falling back to
-`index.html`. Fix it by adding `web/vercel.json`:
+`web/vercel.json` is already in the repository and carries the rewrite that
+makes deep links work:
 
 ```json
 {
@@ -226,8 +224,32 @@ and refresh it. If it 404s, the static host is not falling back to
 }
 ```
 
-Vercel serves real static assets before applying rewrites, so this does not
-shadow the built JS and CSS.
+This is required, not optional. An earlier revision of this runbook left it as
+a conditional step, on the assumption that Vercel's Vite preset might supply an
+SPA fallback on its own. It does not. Measured against a real deployment:
+
+```
+/          200
+/login     404
+/about     404
+/buckets   404
+/keys      404
+```
+
+Every route except `/` is created by React Router in the browser, so no file
+exists at `dist/login` for a static host to serve. Without the rewrite Vercel
+answers its own 404, with `content-type: text/plain` and
+`x-vercel-error: NOT_FOUND`, before any application code runs. That is worth
+recognising, because the application's own NotFound page never renders either,
+which makes the failure read like a routing bug rather than a hosting one.
+
+It breaks more than refreshes and bookmarks. The OAuth callback redirects to
+`APP_URL`, so any landing path other than `/` fails, and a crawler fetching
+`/about` gets a 404 rather than the page that exists to be indexed.
+
+Vercel checks the filesystem before applying rewrites, so real files still win:
+verify `/robots.txt`, `/og.png` and `/logo.webp` all return 200 after
+deploying, alongside a refresh on `/keys`.
 
 ## 7. Google OAuth
 
