@@ -3,12 +3,15 @@
 A self-hosted secret manager: encrypted key/value storage with a web UI and a
 programmatic API for CI pipelines.
 
-> **Status:** feature complete and tested end to end. Buckets, secrets with
-> envelope encryption, scoped API keys, a web UI covering all three, and an
-> audit trail with no viewer of its own yet.
+> **Status:** feature complete, tested end to end, and deployed. Buckets,
+> secrets with envelope encryption, scoped API keys, a web UI covering all
+> three, and an audit trail with no viewer of its own yet.
 >
-> **Deployed nowhere.** The Fly configuration is written and has never been
-> applied, pending a domain. Vercel is not configured at all yet.
+> **Live** at
+> [manguito-secret-manager.bobbykim.dev](https://manguito-secret-manager.bobbykim.dev),
+> with the API on Fly behind `api.manguito-secret-manager.bobbykim.dev` and
+> Postgres on Neon. [`docs/deployment.md`](docs/deployment.md) is the runbook
+> that gets you there from nothing.
 >
 > **Deliberately not built yet:** per-key rate limiting. It is deferred in
 > ADR 002 A7, which rules out an in-process counter because Fly stops the
@@ -212,6 +215,14 @@ your own, and what each callback error code means.
 | `ENVIRONMENT` | no | `local` by default |
 | `SESSION_COOKIE_DOMAIN` | no | `.<domain>` in production, so the session cookie is shared between `app.<domain>` and `api.<domain>`. Empty locally |
 
+The frontend reads two of its own, both baked in at build time rather than
+read at runtime, so changing either needs a rebuild and not just a restart:
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `VITE_API_URL` | yes | Origin of the API |
+| `VITE_SITE_URL` | yes | The frontend's own origin, not the API's. Vite substitutes it into the canonical link and the Open Graph tags in `index.html` at build time. Leaving it unset ships those tags containing a literal `%VITE_SITE_URL%`, which passes every test and only surfaces when somebody shares a link |
+
 Generate a KEK with:
 
 ```bash
@@ -245,8 +256,15 @@ migrations run, rather than surfacing as a 500 on first login.
 ```
 api/      FastAPI, SQLAlchemy (sync), Alembic, Dockerfile, fly.toml
 web/      Vite, React 19, TanStack Query, Tailwind
-docs/     ADRs and sub-project specs
+docs/     ADRs, sub-project specs, and the deployment and OAuth runbooks
 ```
+
+[`docs/deployment.md`](docs/deployment.md) covers Neon, Fly and Vercel end to
+end, including the one constraint that decides the whole shape of a deploy:
+the session cookie is `SameSite=Lax` and the frontend calls the API with
+credentials, so both halves have to sit under one registrable domain. Hosting
+on `*.fly.dev` plus `*.vercel.app` cannot work, and it fails quietly rather
+than loudly.
 
 ## Testing
 
@@ -273,7 +291,7 @@ written so that removing the thing they guard makes them fail:
 make test
 ```
 
-Currently 346 backend tests and 242 frontend tests.
+Currently 373 backend tests and 308 frontend tests.
 
 ## Threat model
 
