@@ -153,8 +153,9 @@ export function AppShell() {
         the class carries a test.
 
         justify-between is deliberately absent: it distributed two children
-        here once, and there are four now. ml-auto on the button and
-        md:ml-auto on the account group reproduce it at each width instead.
+        here once, and there are four now. ml-auto on the button below md, and
+        the account group's own md:flex-1 with md:justify-end above it,
+        reproduce what it used to do at each width instead.
       */}
       <header
         ref={headerRef}
