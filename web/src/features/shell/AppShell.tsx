@@ -156,10 +156,16 @@ export function AppShell() {
         here once, and there are four now. ml-auto on the button below md, and
         the account group's own md:flex-1 with md:justify-end above it,
         reproduce what it used to do at each width instead.
+
+        The row gap is md only. The two collapsing groups stay in flow at zero
+        height when the menu is shut, and a row gap applies between zero height
+        lines just as readily as any other, so a gap here would buy 16px of
+        blank header that nothing occupies. Their own margins space them
+        instead, and those go to zero along with them.
       */}
       <header
         ref={headerRef}
-        className="sticky top-0 z-10 flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-border bg-bg px-6 py-4"
+        className="sticky top-0 z-10 flex flex-wrap items-center gap-x-6 border-b border-border bg-bg px-6 py-4 md:gap-y-2"
       >
         <Link to="/buckets" viewTransition className="flex items-center gap-2.5">
           <img src="/logo.webp" alt="" className="h-7 w-7 rounded-lg" />
@@ -191,10 +197,30 @@ export function AppShell() {
             aria-current, so the current destination needs no state and no
             route matching here. `end` is deliberately unset, so
             /buckets/:name keeps Buckets marked. */}
+        {/*
+          Collapsed by max-height rather than display, because display cannot
+          be transitioned and the ask was for the row to grow and shrink rather
+          than appear. The ceiling is measured: this row is 20px of links, and
+          40px leaves room for a reader who has bumped their font size. Content
+          past the ceiling would be clipped, not scrolled, so raise it if this
+          nav ever holds more than two links.
+
+          The spacing is a margin, not padding, and that is not arbitrary.
+          max-height does not floor a border-box element below its own padding,
+          so pt-2 here left the collapsed row 8px tall rather than 0, and the
+          shut header measured 20px taller than before. A margin sits outside
+          that box and goes to zero with the panel.
+
+          invisible when closed is not decoration. Zero height alone leaves the
+          links in the accessibility tree and focusable, so a keyboard user on
+          a phone would tab into a closed menu. display: none used to do this
+          for free. visibility transitions on its own terms: it applies at once
+          on open and at the end of the close, which is what we want.
+        */}
         <nav
           id="shell-nav"
           aria-label="Main"
-          className={`${menuOpen ? "flex" : "hidden"} w-full items-center gap-4 text-sm md:flex md:w-auto`}
+          className={`flex w-full items-center justify-center gap-4 overflow-hidden text-sm transition-[max-height,margin-top,visibility] duration-200 ease-out motion-reduce:transition-none md:visible md:mt-0 md:w-auto md:max-h-none md:justify-start md:overflow-visible ${menuOpen ? "visible mt-2 max-h-10" : "invisible mt-0 max-h-0"}`}
         >
           <NavLink
             to="/buckets"
@@ -220,9 +246,11 @@ export function AppShell() {
             768px instead of the email truncating, which is the one job the
             email's own min-w-0 and truncate exist to do. justify-end keeps it
             hard right, exactly where ml-auto had it. */}
+        {/* Same collapse as the nav above, with its own ceiling: 30px of
+            controls, so 56px carries the same headroom. */}
         <div
           id="shell-account"
-          className={`${menuOpen ? "flex" : "hidden"} w-full items-center gap-4 md:flex md:min-w-0 md:flex-1 md:justify-end`}
+          className={`flex w-full items-center gap-4 overflow-hidden transition-[max-height,margin-top,visibility] duration-200 ease-out motion-reduce:transition-none md:visible md:mt-0 md:max-h-none md:min-w-0 md:flex-1 md:justify-end md:overflow-visible ${menuOpen ? "visible mt-2 max-h-14" : "invisible mt-0 max-h-0"}`}
         >
           {/* The icons flank the switch rather than living inside it:
               ToggleSwitch also renders the API key capability flags, so theme
