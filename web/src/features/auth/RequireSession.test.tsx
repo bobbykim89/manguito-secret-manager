@@ -28,7 +28,7 @@ describe("RequireSession", () => {
 
     renderGuard();
 
-    expect(screen.getByText(/loading/i)).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(/loading/i);
   });
 
   it("renders the children when authenticated", async () => {
