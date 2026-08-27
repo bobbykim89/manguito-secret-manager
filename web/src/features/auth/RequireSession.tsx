@@ -14,7 +14,18 @@ export function RequireSession() {
   const session = useSession();
 
   if (session.status === "pending") {
-    return <p className="p-8 text-text-muted">Loading</p>;
+    // min-h-dvh, because the guard renders outside AppShell and so owns the
+    // whole viewport. Nothing else is competing for the height, which is what
+    // makes centring here a two-class job rather than a layout problem.
+    return (
+      <div role="status" className="flex min-h-dvh flex-col items-center justify-center gap-4">
+        <p className="text-sm text-text-muted">Loading...</p>
+        <div
+          aria-hidden
+          className="h-10 w-10 animate-spin rounded-full border-4 border-border border-t-accent motion-reduce:animate-none"
+        />
+      </div>
+    );
   }
 
   if (session.status === "error") {
